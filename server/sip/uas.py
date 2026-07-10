@@ -25,6 +25,13 @@ class SipUasProtocol(asyncio.DatagramProtocol):
 
     def connection_made(self, transport) -> None:
         self.transport = transport
+        # let the call manager (e.g. the RTP idle watchdog) clean up our dialog state
+        self.call_manager.on_call_ended = self.forget_dialog
+
+    def forget_dialog(self, call_id: str) -> None:
+        dialog = self.dialogs.pop(call_id, None)
+        if dialog and dialog.get("task"):
+            dialog["task"].cancel()
 
     def datagram_received(self, data: bytes, addr) -> None:
         try:

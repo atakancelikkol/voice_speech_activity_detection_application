@@ -72,6 +72,7 @@ class RtpJitterBuffer:
 class RtpReceiverProtocol(asyncio.DatagramProtocol):
     def __init__(self, on_audio: Callable[[np.ndarray], None]):
         self.buffer = RtpJitterBuffer(on_audio)
+        self.last_packet_at: float | None = None
 
     def datagram_received(self, data: bytes, addr) -> None:
         try:
@@ -79,6 +80,7 @@ class RtpReceiverProtocol(asyncio.DatagramProtocol):
         except ValueError:
             self.buffer.stats.bad += 1
             return
+        self.last_packet_at = asyncio.get_running_loop().time()
         self.buffer.push(packet)
 
 

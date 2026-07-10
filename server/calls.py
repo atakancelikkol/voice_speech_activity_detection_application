@@ -8,6 +8,7 @@ updates to the WebSocket hub roughly every 100 ms.
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from pathlib import Path
 
@@ -184,6 +185,9 @@ class CallPipeline:
         return {"t0_ms": 0, "dt_ms": SCORE_GRID_MS, "values": [round(float(v), 4) for v in values]}
 
 
+RTP_IDLE_TIMEOUT_S = 30.0
+
+
 class CallManager:
     """Owns RTP ports and the pipeline for the (single) active call."""
 
@@ -192,6 +196,7 @@ class CallManager:
         self.store = store
         self.engine_manager = engine_manager
         self.hub = hub
+        self.on_call_ended = None  # set by the SIP UAS to drop its dialog state
         self._free_ports = list(range(config.rtp_port_min, config.rtp_port_max + 1, 2))
         self._active: dict[str, dict] = {}  # call_id -> {pipeline, transport, protocol, rtp_port}
 
@@ -208,20 +213,42 @@ class CallManager:
             session_id, session_dir, engines, self.engine_manager.active_configs(), self.hub, call_id
         )
         transport, protocol = await open_rtp_receiver(self.config.host, rtp_port, pipeline.on_audio)
+        loop = asyncio.get_running_loop()
         self._active[call_id] = {
             "pipeline": pipeline,
             "transport": transport,
             "protocol": protocol,
             "rtp_port": rtp_port,
+            "started_at": loop.time(),
+            "watchdog": loop.create_task(self._watchdog(call_id)),
         }
         if self.hub:
             self.hub.publish({"kind": "call_state", "state": "active", "session_id": session_id})
         return rtp_port, pipeline
 
+    async def _watchdog(self, call_id: str) -> None:
+        """Tear the call down if the peer vanishes without a BYE."""
+        loop = asyncio.get_running_loop()
+        while True:
+            await asyncio.sleep(5.0)
+            entry = self._active.get(call_id)
+            if entry is None:
+                return
+            last = entry["protocol"].last_packet_at or entry["started_at"]
+            if loop.time() - last > RTP_IDLE_TIMEOUT_S:
+                logging.getLogger("calls").warning(
+                    "call %s: no RTP for %.0fs, ending", call_id, RTP_IDLE_TIMEOUT_S
+                )
+                self.end_call(call_id)
+                return
+
     def end_call(self, call_id: str) -> str | None:
         entry = self._active.pop(call_id, None)
         if entry is None:
             return None
+        entry["watchdog"].cancel()
+        if self.on_call_ended:
+            self.on_call_ended(call_id)
         entry["transport"].close()
         pipeline: CallPipeline = entry["pipeline"]
         stats = entry["protocol"].buffer.stats
