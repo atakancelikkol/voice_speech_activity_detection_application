@@ -25,7 +25,9 @@ class Hub:
     async def attach(self, ws: WebSocket) -> asyncio.Queue:
         queue: asyncio.Queue = asyncio.Queue(maxsize=512)
         self._queues[ws] = queue
-        if self.last_call_state:
+        # only replay an *active* call so a fresh page joins the live view;
+        # replaying "finished" would yank clients back to that session
+        if self.last_call_state and self.last_call_state.get("state") == "active":
             queue.put_nowait(self.last_call_state)
         return queue
 

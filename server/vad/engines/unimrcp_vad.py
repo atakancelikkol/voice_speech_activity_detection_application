@@ -91,6 +91,7 @@ class Engine(VadEngine):
         lib.uvad_silence_timeout_set(self._detector, self.config["silence_timeout"])
         lib.uvad_noinput_timeout_set(self._detector, self.config["noinput_timeout"])
         lib.uvad_frame_duration_set(self._detector, int(self._FORMAT.frame_ms))
+        self._noinput_reported = False
 
     @property
     def input_format(self) -> AudioFormat:
@@ -109,15 +110,22 @@ class Engine(VadEngine):
         # The C detector confirms transitions only after its timeout has
         # elapsed, so onsets/offsets are backdated to the transition start.
         if code == UVAD_EVENT_ACTIVITY:
+            self._noinput_reported = False
             return VadEvent(EventKind.SPEECH_START, max(0.0, frame_end_ms - self.config["speech_timeout"]))
         if code == UVAD_EVENT_INACTIVITY:
             return VadEvent(EventKind.SPEECH_END, max(0.0, frame_end_ms - self.config["silence_timeout"]))
         if code == UVAD_EVENT_NOINPUT:
+            # the C detector re-reports NOINPUT every frame past the timeout
+            # (unimrcp callers end the call on the first one) — report once
+            if self._noinput_reported:
+                return None
+            self._noinput_reported = True
             return VadEvent(EventKind.NOINPUT, frame_end_ms)
         return None
 
     def reset(self) -> None:
         self._c.uvad_reset(self._detector)
+        self._noinput_reported = False
 
     def close(self) -> None:
         if getattr(self, "_detector", None):

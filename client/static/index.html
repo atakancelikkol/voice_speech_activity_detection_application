@@ -67,15 +67,32 @@ function render(status) {
   errorEl.textContent = status.error || "";
 }
 
+async function readError(res) {
+  try {
+    const data = await res.json();
+    const detail = data.detail ?? data;
+    if (typeof detail === "string") return detail;
+    if (Array.isArray(detail)) return detail.map(d => d.msg || JSON.stringify(d)).join("; ");
+    return JSON.stringify(detail);
+  } catch {
+    return `call failed (HTTP ${res.status})`;
+  }
+}
+
 btn.addEventListener("click", async () => {
-  if (state === "idle") {
-    const mode = document.querySelector("input[name=mode]:checked").value;
-    const body = { mode, wav_path: document.getElementById("wavPath").value || null };
-    const res = await fetch("/call/start", { method: "POST",
-      headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    if (!res.ok) errorEl.textContent = (await res.json()).detail || "call failed";
-  } else {
-    await fetch("/call/stop", { method: "POST" });
+  errorEl.textContent = "";
+  try {
+    if (state === "idle") {
+      const mode = document.querySelector("input[name=mode]:checked").value;
+      const body = { mode, wav_path: document.getElementById("wavPath").value || null };
+      const res = await fetch("/call/start", { method: "POST",
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!res.ok) errorEl.textContent = await readError(res);
+    } else {
+      await fetch("/call/stop", { method: "POST" });
+    }
+  } catch (err) {
+    errorEl.textContent = `request failed: ${err.message || err}`;
   }
 });
 

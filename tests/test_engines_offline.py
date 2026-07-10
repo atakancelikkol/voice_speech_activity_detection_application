@@ -66,7 +66,9 @@ class TestUnimrcpVad:
         silence = np.zeros(SOURCE_RATE * 2, dtype=np.int16)  # 2 s
         scores = runner.feed(silence)
         noinput = [s for s in scores if s.event and s.event.kind.value == "noinput"]
-        assert noinput and abs(noinput[0].event.at_ms - 1000.0) <= 20.0
+        # exactly one report (the C detector re-fires every frame; the wrapper dedupes)
+        assert len(noinput) == 1
+        assert abs(noinput[0].event.at_ms - 1000.0) <= 20.0
 
     def test_score_curve_tracks_energy(self):
         wav = FIXTURES / "pattern1.wav"
@@ -80,3 +82,45 @@ class TestUnimrcpVad:
         loud = [s.raw for s in scores if 1100 < s.t_ms < 2900]
         quiet = [s.raw for s in scores if s.t_ms < 900]
         assert min(loud) > max(quiet)
+
+
+class TestArfVad:
+    def test_pattern1_segments(self):
+        wav = FIXTURES / "pattern1.wav"
+        segments, _ = run_engine("arf_vad", wav)
+        assert_matches(segments, expected_regions(wav), tolerance_ms=350.0)
+
+    def test_speech_segments(self):
+        wav = FIXTURES / "speech.wav"
+        segments, _ = run_engine("arf_vad", wav)
+        assert segments, "no speech detected in real speech fixture"
+        regions = expected_regions(wav)
+        assert abs(segments[0].start_ms - regions[0]["start_ms"]) <= 400.0
+        assert abs(segments[-1].end_ms - regions[0]["end_ms"]) <= 400.0
+
+    def test_noinput_event_on_silence(self):
+        infos = registry.discover()
+        info = infos["arf_vad"]
+        if not info.available:
+            pytest.skip(info.reason)
+        runner = EngineRunner(registry.create(info, {"noinput_timeout": 1000}))
+        silence = np.zeros(SOURCE_RATE * 2, dtype=np.int16)  # 2 s
+        scores = runner.feed(silence)
+        noinput = [s for s in scores if s.event and s.event.kind.value == "noinput"]
+        # the C detector re-fires once per timeout window; the wrapper dedupes
+        assert len(noinput) == 1
+        assert abs(noinput[0].event.at_ms - 1000.0) <= 20.0
+
+    def test_snr_curve_separates_speech_from_silence(self):
+        wav = FIXTURES / "pattern1.wav"
+        infos = registry.discover()
+        info = infos["arf_vad"]
+        if not info.available:
+            pytest.skip(info.reason)
+        runner = EngineRunner(registry.create(info))
+        pcm = load_wav(wav, SOURCE_RATE)
+        scores = runner.feed(pcm)
+        # raw is SNR in dB over the adaptive noise floor
+        loud = [s.raw for s in scores if 1100 < s.t_ms < 2900]
+        quiet = [s.raw for s in scores if 100 < s.t_ms < 900]
+        assert min(loud) > max(quiet) + 20.0

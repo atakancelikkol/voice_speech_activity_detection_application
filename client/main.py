@@ -12,6 +12,8 @@ import contextlib
 import logging
 from pathlib import Path
 
+from pydantic import BaseModel
+
 from client.rtp_sender import RtpSender, open_rtp_socket
 from client.sip_uac import SipUac
 from client.wav_source import stream_wav
@@ -20,6 +22,11 @@ from server.sip.sdp import build_sdp, parse_sdp
 log = logging.getLogger("client")
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+
+
+class StartRequest(BaseModel):
+    mode: str  # "mic" | "wav"
+    wav_path: str | None = None
 
 
 class CallController:
@@ -62,7 +69,15 @@ class CallController:
             else:
                 loop = asyncio.get_running_loop()
                 self._capture = self._make_capture(sender, loop)
-                self._capture.start()
+                # opening the input device can block on the macOS microphone
+                # permission prompt — keep the loop responsive and fail loud
+                try:
+                    await asyncio.wait_for(loop.run_in_executor(None, self._capture.start), timeout=8.0)
+                except asyncio.TimeoutError:
+                    raise RuntimeError(
+                        "microphone did not open in 8s — grant microphone access to your "
+                        "terminal in System Settings > Privacy & Security > Microphone"
+                    )
         except Exception as exc:
             self.error = str(exc)
             log.error("call failed: %s", exc)
@@ -134,18 +149,13 @@ async def one_shot(args) -> None:
 def build_ui_app(controller: CallController):
     from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
     from fastapi.staticfiles import StaticFiles
-    from pydantic import BaseModel
-
-    class StartRequest(BaseModel):
-        mode: str  # "mic" | "wav"
-        wav_path: str | None = None
 
     app = FastAPI(title="VAD Softphone")
 
     @app.post("/call/start")
-    async def call_start(request: StartRequest):
+    async def call_start(start: StartRequest):
         try:
-            await controller.start_call(request.mode, request.wav_path)
+            await controller.start_call(start.mode, start.wav_path)
         except Exception as exc:
             raise HTTPException(422, str(exc))
         return controller.status()

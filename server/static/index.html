@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>VAD Comparison</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>VAD Comparison</h1>
+  <span id="liveBadge">idle</span>
+</header>
+<div id="layout">
+  <aside>
+    <h2>Sessions</h2>
+    <ul id="sessionList"></ul>
+  </aside>
+  <main>
+    <div id="toolbar">
+      <span class="title" id="sessionTitle">no session</span>
+      <audio id="player" controls style="display:none"></audio>
+      <button id="annotateBtn">Annotate</button>
+      <button id="saveAnnoBtn" style="display:none">Save annotations</button>
+      <button id="followBtn" class="on">Follow live</button>
+      <button id="fitBtn">Fit</button>
+    </div>
+    <div id="timelineWrap"><canvas id="timeline"></canvas></div>
+  </main>
+  <aside class="right">
+    <h2>Engines</h2>
+    <div id="enginePanel"></div>
+    <div id="metrics"></div>
+  </aside>
+</div>
+<script type="module" src="app.js"></script>
+</body>
+</html>

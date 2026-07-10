@@ -1,0 +1,74 @@
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+body {
+  margin: 0; font-family: -apple-system, system-ui, sans-serif;
+  background: #14161a; color: #e8e8e8; height: 100vh; display: flex; flex-direction: column;
+}
+header {
+  display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+  background: #1d2026; border-bottom: 1px solid #2a2f38;
+}
+header h1 { font-size: 16px; margin: 0; font-weight: 600; }
+#liveBadge {
+  padding: 2px 10px; border-radius: 999px; font-size: 12px; background: #333a45; color: #9aa;
+}
+#liveBadge.active { background: #e03131; color: #fff; animation: pulse 1.2s infinite; }
+@keyframes pulse { 50% { opacity: 0.6; } }
+
+#layout { display: flex; flex: 1; min-height: 0; }
+aside {
+  width: 230px; background: #1a1d22; border-right: 1px solid #2a2f38;
+  overflow-y: auto; padding: 10px; flex-shrink: 0;
+}
+aside.right { border-right: 0; border-left: 1px solid #2a2f38; width: 260px; }
+aside h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #9aa; margin: 6px 4px; }
+
+#sessionList { list-style: none; margin: 0; padding: 0; }
+#sessionList li {
+  padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 13px; margin-bottom: 4px;
+}
+#sessionList li:hover { background: #242933; }
+#sessionList li.selected { background: #2b3442; }
+#sessionList .meta { color: #9aa; font-size: 11px; display: block; }
+#sessionList .dot { color: #ff6b6b; }
+
+main { flex: 1; display: flex; flex-direction: column; min-width: 0; padding: 10px 14px; gap: 8px; }
+#toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+#toolbar .title { font-size: 14px; font-weight: 600; margin-right: auto; }
+#toolbar button {
+  background: #2b3442; border: 0; color: #e8e8e8; padding: 6px 12px;
+  border-radius: 8px; cursor: pointer; font-size: 13px;
+}
+#toolbar button:hover { background: #354052; }
+#toolbar button.on { background: #1971c2; }
+#toolbar button.danger { background: #7d2a2a; }
+audio { height: 32px; }
+
+#timelineWrap { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; border-radius: 10px; background: #101216; }
+#timeline { display: block; width: 100%; height: 100%; cursor: crosshair; }
+
+.engineCard {
+  background: #1d2026; border: 1px solid #2a2f38; border-radius: 10px;
+  padding: 10px; margin-bottom: 10px; font-size: 13px;
+}
+.engineCard .head { display: flex; align-items: center; gap: 8px; }
+.engineCard .swatch { width: 10px; height: 10px; border-radius: 3px; }
+.engineCard .name { font-weight: 600; }
+.engineCard .head input { margin-left: auto; }
+.engineCard.unavailable { opacity: 0.55; }
+.engineCard .reason { color: #ff8787; font-size: 11px; margin-top: 6px; }
+.engineCard .params { margin-top: 8px; display: grid; grid-template-columns: 1fr 76px; gap: 4px 8px; }
+.engineCard .params label { color: #9aa; font-size: 11px; align-self: center; }
+.engineCard .params input {
+  width: 100%; background: #14161a; color: #e8e8e8; border: 1px solid #333a45;
+  border-radius: 6px; padding: 3px 6px; font-size: 12px;
+}
+.engineCard .apply {
+  margin-top: 8px; width: 100%; background: #2b3442; border: 0; color: #e8e8e8;
+  padding: 5px; border-radius: 6px; cursor: pointer; font-size: 12px;
+}
+.engineCard .apply:hover { background: #354052; }
+#annotateHint, #metrics { font-size: 12px; color: #9aa; }
+#metrics table { border-collapse: collapse; margin-top: 6px; width: 100%; }
+#metrics th, #metrics td { text-align: right; padding: 3px 6px; border-bottom: 1px solid #2a2f38; }
+#metrics th:first-child, #metrics td:first-child { text-align: left; }
