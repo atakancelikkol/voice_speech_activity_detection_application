@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# build artifacts
+*.dylib
+*.so
+
+# downloaded models and recorded sessions
+models/
+data/

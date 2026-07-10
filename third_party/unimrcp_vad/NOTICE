@@ -1,0 +1,14 @@
+uvad — standalone extraction of the UniMRCP activity detector
+
+This directory contains code derived from the UniMRCP Project
+(http://www.unimrcp.org), specifically:
+
+  libs/mpf/src/mpf_activity_detector.c
+  libs/mpf/include/mpf_activity_detector.h
+
+Copyright (C) 2008-2015 Arsen Chaloyan
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+The detection algorithm is unchanged; see uvad.h for the list of
+mechanical modifications (allocation, types, frame API) made to remove
+the APR/APT dependencies.

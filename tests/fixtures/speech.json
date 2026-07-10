@@ -1,0 +1,9 @@
+{
+  "rate": 8000,
+  "speech_regions": [
+    {
+      "start_ms": 1020.0,
+      "end_ms": 6670.0
+    }
+  ]
+}
