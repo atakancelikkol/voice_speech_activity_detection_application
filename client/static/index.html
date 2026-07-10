@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>VAD Softphone</title>
+<style>
+  :root { color-scheme: dark; }
+  body { font-family: -apple-system, system-ui, sans-serif; background: #14161a; color: #e8e8e8;
+         display: flex; justify-content: center; padding-top: 8vh; }
+  .phone { width: 360px; background: #1d2026; border-radius: 16px; padding: 24px; box-shadow: 0 8px 30px #0008; }
+  h1 { font-size: 18px; margin: 0 0 16px; }
+  .row { margin: 12px 0; }
+  label { display: block; font-size: 12px; color: #9aa; margin-bottom: 4px; }
+  input[type=text] { width: 100%; box-sizing: border-box; background: #14161a; color: #e8e8e8;
+         border: 1px solid #333a45; border-radius: 8px; padding: 8px; }
+  .modes { display: flex; gap: 12px; }
+  .modes label { display: flex; align-items: center; gap: 6px; font-size: 14px; color: #e8e8e8; }
+  button { width: 100%; padding: 12px; border: 0; border-radius: 10px; font-size: 16px; cursor: pointer; }
+  button.start { background: #2f9e44; color: white; }
+  button.stop { background: #e03131; color: white; }
+  #state { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; background: #333a45; }
+  #state.active { background: #2f9e44; }
+  #state.calling, #state.ending { background: #e8a33d; color: #222; }
+  #meter { width: 100%; height: 14px; background: #14161a; border-radius: 7px; overflow: hidden; margin-top: 6px; }
+  #meter div { height: 100%; width: 0; background: linear-gradient(90deg, #2f9e44, #ffd43b, #e03131); }
+  #error { color: #ff8787; font-size: 12px; min-height: 16px; }
+</style>
+</head>
+<body>
+<div class="phone">
+  <h1>VAD Softphone <span id="state">idle</span></h1>
+  <div class="row modes">
+    <label><input type="radio" name="mode" value="mic" checked> Microphone</label>
+    <label><input type="radio" name="mode" value="wav"> WAV file</label>
+  </div>
+  <div class="row" id="wavRow" style="display:none">
+    <label for="wavPath">WAV path (on this machine)</label>
+    <input type="text" id="wavPath" placeholder="tests/fixtures/speech.wav">
+  </div>
+  <div class="row">
+    <label>Input level</label>
+    <div id="meter"><div id="meterFill"></div></div>
+  </div>
+  <div class="row"><button id="callBtn" class="start">Start call</button></div>
+  <div id="error"></div>
+</div>
+<script>
+const stateEl = document.getElementById("state");
+const btn = document.getElementById("callBtn");
+const errorEl = document.getElementById("error");
+const meterFill = document.getElementById("meterFill");
+const wavRow = document.getElementById("wavRow");
+let state = "idle";
+
+document.querySelectorAll("input[name=mode]").forEach(el =>
+  el.addEventListener("change", () => {
+    wavRow.style.display = document.querySelector("input[name=mode]:checked").value === "wav" ? "" : "none";
+  }));
+
+function render(status) {
+  state = status.state;
+  stateEl.textContent = state;
+  stateEl.className = state;
+  btn.textContent = state === "idle" ? "Start call" : "End call";
+  btn.className = state === "idle" ? "start" : "stop";
+  meterFill.style.width = Math.min(100, status.level * 300) + "%";
+  errorEl.textContent = status.error || "";
+}
+
+btn.addEventListener("click", async () => {
+  if (state === "idle") {
+    const mode = document.querySelector("input[name=mode]:checked").value;
+    const body = { mode, wav_path: document.getElementById("wavPath").value || null };
+    const res = await fetch("/call/start", { method: "POST",
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (!res.ok) errorEl.textContent = (await res.json()).detail || "call failed";
+  } else {
+    await fetch("/call/stop", { method: "POST" });
+  }
+});
+
+function connect() {
+  const ws = new WebSocket(`ws://${location.host}/ws`);
+  ws.onmessage = e => render(JSON.parse(e.data));
+  ws.onclose = () => setTimeout(connect, 1000);
+}
+connect();
+</script>
+</body>
+</html>
