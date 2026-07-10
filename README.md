@@ -17,6 +17,15 @@ yakaladığı konuşma bölgeleri, elle işaretlenen "gerçek konuşma" (ground 
 | `unimrcp_vad` | Enerji tabanlı 4-durumlu state machine — **gerçek UniMRCP C kodu** (`mpf_activity_detector.c`), derlenip ctypes ile sarılır | [unimrcp](https://github.com/unispeech/unimrcp), Apache 2.0 |
 | `silero_vad` | Nöral model, ONNX v5, onnxruntime | [snakers4/silero-vad](https://github.com/snakers4/silero-vad) |
 | `ten_vad` | Nöral model, prebuilt lib (pip) | [TEN-framework/ten-vad](https://github.com/TEN-framework/ten-vad) |
+| `arf_vad` | Adaptif gürültü tabanı (asimetrik one-pole) + SNR onset/offset histerezisi + DC blocker + ZCR frikatif desteği + libfvad spektral kapısı — **arf-recog-adaptive-vad plugin'inin gerçek C kodu** (`arf_vad.c`), derlenip ctypes ile sarılır | UniMRCP plugin (yerel) + [libfvad](https://github.com/dpirch/libfvad), BSD-3 |
+
+`arf_vad`, plugin'deki dağıtım davranışını birebir taşır: libfvad (WebRTC VAD)
+her 10 ms karede oy verir, son `fvad_window` karenin konuşma oranı konuşma
+öncesi `fvad_open_pct` / konuşma içinde `fvad_hold_pct` eşiğiyle karşılaştırılır
+ve gürültü oyu onset/offset'i veto eder (rüzgar/klik kapısı). Kısa ve yüksek
+kelimelerin veto edilmesine karşı `spec_bypass_snr` kolu, `use_fvad=0` ile
+salt enerji/SNR kipi denenebilir; proximity kapıları (`onset_level`,
+`dominant_drop_db`, `adaptive_margin_db`) varsayılan olarak kapalıdır.
 
 Yeni motor eklemek: `server/vad/engines/` altına `VadEngine` türevi bir dosya,
 `server/vad/registry.py` listesine bir satır.
@@ -102,4 +111,9 @@ client (softphone)                    server
 
 - `third_party/unimrcp_vad/`: UniMRCP'den türetilmiştir — Apache 2.0
   (bkz. LICENSE ve NOTICE).
+- `third_party/arf_vad/`: arf-recog-adaptive-vad UniMRCP plugin'inden mekanik
+  olarak çıkarılmıştır (bkz. NOTICE; APR/APT/MPF bağımlılıkları giderildi,
+  algoritma değişmedi).
+- `third_party/libfvad/`: WebRTC türevi [libfvad](https://github.com/dpirch/libfvad)
+  — BSD 3-clause (bkz. LICENSE ve NOTICE).
 - Silero VAD modeli: MIT. TEN VAD: Apache 2.0 + ek koşullar (kendi reposuna bakın).

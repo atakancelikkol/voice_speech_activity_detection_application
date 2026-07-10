@@ -6,6 +6,8 @@ setup: build-c
 
 build-c:
 	$(MAKE) -C third_party/unimrcp_vad
+	$(MAKE) -C third_party/libfvad
+	$(MAKE) -C third_party/arf_vad
 
 models:
 	./scripts/fetch_models.sh
@@ -24,3 +26,5 @@ run-client:
 
 clean:
 	$(MAKE) -C third_party/unimrcp_vad clean
+	$(MAKE) -C third_party/libfvad clean
+	$(MAKE) -C third_party/arf_vad clean

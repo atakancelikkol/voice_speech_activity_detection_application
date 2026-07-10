@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "vad-server-preview",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": [
+        "run",
+        "vad-server",
+        "--http-port",
+        "8090",
+        "--sip-port",
+        "5070",
+        "--rtp-port-min",
+        "40200",
+        "--rtp-port-max",
+        "40219"
+      ],
+      "port": 8090,
+      "autoPort": false
+    }
+  ]
+}

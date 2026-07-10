@@ -64,6 +64,9 @@ class ParamSpec:
 
     def coerce(self, value: Any) -> Any:
         if self.type == "bool":
+            # CLI --param values arrive as strings; bool("0") would be True
+            if isinstance(value, str):
+                return value.strip().lower() in ("1", "true", "yes", "on")
             return bool(value)
         value = int(value) if self.type == "int" else float(value)
         if self.min is not None:

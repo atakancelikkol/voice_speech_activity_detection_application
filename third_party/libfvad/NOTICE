@@ -1,0 +1,12 @@
+libfvad — voice activity detection library extracted from the WebRTC
+project (https://github.com/dpirch/libfvad), vendored unchanged from the
+copy embedded in the arf-recog-adaptive-vad UniMRCP plugin
+(plugins/arf-recog-adaptive-vad/src/libfvad/).
+
+Copyright (c) 2012 The WebRTC project authors.
+Copyright (c) 2016 Daniel Pirch.
+BSD 3-clause license (see LICENSE).
+
+Used by the arf_vad engine as the per-frame spectral speech/noise vote
+(wind/click/room-noise gate) fused into the adaptive SNR detector, the
+same way the plugin's recognizer engine feeds it.

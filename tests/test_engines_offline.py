@@ -86,17 +86,41 @@ class TestUnimrcpVad:
 
 class TestArfVad:
     def test_pattern1_segments(self):
+        # default config (libfvad gate ON): the strict open threshold adds
+        # ~fvad_window*open_pct frames of onset delay, still within tolerance
         wav = FIXTURES / "pattern1.wav"
         segments, _ = run_engine("arf_vad", wav)
         assert_matches(segments, expected_regions(wav), tolerance_ms=350.0)
+
+    def test_pattern1_segments_energy_only(self):
+        # without the spectral gate the backdated onsets land on the truth
+        wav = FIXTURES / "pattern1.wav"
+        segments, _ = run_engine("arf_vad", wav, {"use_fvad": False})
+        assert_matches(segments, expected_regions(wav), tolerance_ms=50.0)
 
     def test_speech_segments(self):
         wav = FIXTURES / "speech.wav"
         segments, _ = run_engine("arf_vad", wav)
         assert segments, "no speech detected in real speech fixture"
         regions = expected_regions(wav)
-        assert abs(segments[0].start_ms - regions[0]["start_ms"]) <= 400.0
+        # the fvad open gate only ever delays an onset, never fires early
+        assert segments[0].start_ms >= regions[0]["start_ms"] - 50.0
+        assert abs(segments[0].start_ms - regions[0]["start_ms"]) <= 500.0
         assert abs(segments[-1].end_ms - regions[0]["end_ms"]) <= 400.0
+
+    def test_spec_bypass_recovers_fvad_vetoed_words(self):
+        # With the strict open threshold, libfvad under-votes the short
+        # "One, two, three" words after a pause and the segment is vetoed.
+        # spec_bypass_snr lets unambiguously loud frames override the veto —
+        # the deployed fix for exactly this failure mode ("evet" problem).
+        wav = FIXTURES / "speech.wav"
+        gated, _ = run_engine("arf_vad", wav)
+        bypass, _ = run_engine("arf_vad", wav, {"spec_bypass_snr": 25.0})
+        energy_only, _ = run_engine("arf_vad", wav, {"use_fvad": False})
+        assert len(bypass) == len(energy_only) > len(gated)
+        for seg_b, seg_e in zip(bypass, energy_only):
+            assert abs(seg_b.start_ms - seg_e.start_ms) <= 50.0
+            assert abs(seg_b.end_ms - seg_e.end_ms) <= 50.0
 
     def test_noinput_event_on_silence(self):
         infos = registry.discover()
@@ -124,3 +148,20 @@ class TestArfVad:
         loud = [s.raw for s in scores if 1100 < s.t_ms < 2900]
         quiet = [s.raw for s in scores if 100 < s.t_ms < 900]
         assert min(loud) > max(quiet) + 20.0
+
+    def test_bool_param_accepts_cli_strings(self):
+        # CLI --param values arrive as strings; "0"/"false" must mean False
+        infos = registry.discover()
+        info = infos["arf_vad"]
+        if not info.available:
+            pytest.skip(info.reason)
+        engine = registry.create(info, {"use_fvad": "0"})
+        try:
+            assert engine.config["use_fvad"] is False
+        finally:
+            engine.close()
+        engine = registry.create(info, {"use_fvad": "true"})
+        try:
+            assert engine.config["use_fvad"] is True
+        finally:
+            engine.close()

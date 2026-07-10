@@ -1,0 +1,15 @@
+arf_vad — standalone extraction of the adaptive SNR voice activity
+detector from the arf-recog-adaptive-vad UniMRCP plugin, specifically:
+
+  plugins/arf-recog-adaptive-vad/src/arf_vad.c
+  plugins/arf-recog-adaptive-vad/src/arf_vad.h
+
+The detection algorithm is unchanged (adaptive noise floor with an
+asymmetric one-pole tracker, SNR onset/offset gates with hysteresis and
+leaky integrators, DC blocker, zero-crossing fricative assist, proximity
+gates). See arf_vad.h for the list of mechanical modifications
+(allocation, types, frame API, logging) made to remove the APR/APT/MPF
+dependencies.
+
+The spectral (libfvad) vote fusion is retained in the API but unused
+here: without a caller supplying votes the detector runs energy/SNR-only.
