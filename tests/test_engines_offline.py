@@ -85,22 +85,37 @@ class TestUnimrcpVad:
 
 
 class TestArfVad:
+    # The shipped defaults are tuned for 8 kHz telephony (loud near-talker over
+    # ~2200 babble, 1300 ms end-of-utterance wait). The synthetic/say fixtures
+    # here have 1000 ms gaps and modest levels, so these tests relax the
+    # proximity/timeout gates to exercise the core state machine rather than the
+    # deployment calibration. (The production values live in the engine's
+    # ParamSpec defaults and are what the UI shows.)
+    ARF_BASE = {
+        "onset_snr": 9.0,
+        "onset_level": 0,
+        "onset_confirm_frames": 0,
+        "adaptive_margin_db": 0.0,
+        "speech_timeout": 300,
+        "silence_timeout": 300,
+    }
+
     def test_pattern1_segments(self):
         # default config (libfvad gate ON): the strict open threshold adds
         # ~fvad_window*open_pct frames of onset delay, still within tolerance
         wav = FIXTURES / "pattern1.wav"
-        segments, _ = run_engine("arf_vad", wav)
+        segments, _ = run_engine("arf_vad", wav, self.ARF_BASE)
         assert_matches(segments, expected_regions(wav), tolerance_ms=350.0)
 
     def test_pattern1_segments_energy_only(self):
         # without the spectral gate the backdated onsets land on the truth
         wav = FIXTURES / "pattern1.wav"
-        segments, _ = run_engine("arf_vad", wav, {"use_fvad": False})
+        segments, _ = run_engine("arf_vad", wav, {**self.ARF_BASE, "use_fvad": False})
         assert_matches(segments, expected_regions(wav), tolerance_ms=50.0)
 
     def test_speech_segments(self):
         wav = FIXTURES / "speech.wav"
-        segments, _ = run_engine("arf_vad", wav)
+        segments, _ = run_engine("arf_vad", wav, self.ARF_BASE)
         assert segments, "no speech detected in real speech fixture"
         regions = expected_regions(wav)
         # the fvad open gate only ever delays an onset, never fires early
@@ -114,9 +129,9 @@ class TestArfVad:
         # spec_bypass_snr lets unambiguously loud frames override the veto —
         # the deployed fix for exactly this failure mode ("evet" problem).
         wav = FIXTURES / "speech.wav"
-        gated, _ = run_engine("arf_vad", wav)
-        bypass, _ = run_engine("arf_vad", wav, {"spec_bypass_snr": 25.0})
-        energy_only, _ = run_engine("arf_vad", wav, {"use_fvad": False})
+        gated, _ = run_engine("arf_vad", wav, {**self.ARF_BASE, "spec_bypass_snr": 0.0})
+        bypass, _ = run_engine("arf_vad", wav, {**self.ARF_BASE, "spec_bypass_snr": 25.0})
+        energy_only, _ = run_engine("arf_vad", wav, {**self.ARF_BASE, "use_fvad": False})
         assert len(bypass) == len(energy_only) > len(gated)
         for seg_b, seg_e in zip(bypass, energy_only):
             assert abs(seg_b.start_ms - seg_e.start_ms) <= 50.0
@@ -141,7 +156,7 @@ class TestArfVad:
         info = infos["arf_vad"]
         if not info.available:
             pytest.skip(info.reason)
-        runner = EngineRunner(registry.create(info))
+        runner = EngineRunner(registry.create(info, self.ARF_BASE))
         pcm = load_wav(wav, SOURCE_RATE)
         scores = runner.feed(pcm)
         # raw is SNR in dB over the adaptive noise floor
