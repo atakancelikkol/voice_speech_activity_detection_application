@@ -1,16 +1,16 @@
-.PHONY: setup build-c models wavs test run stop status run-server run-client clean
+.PHONY: setup build-c models noise wavs test run stop status run-server run-client clean
 
-# both processes in one terminal; kills any previous instances first,
-# Ctrl-C stops them together
+# the whole app in one command: the server starts the softphone client
+# itself, so you only ever open http://127.0.0.1:8080
 run: stop
-	@trap 'kill 0' INT TERM; \
-	uv run vad-server & \
-	uv run vad-client & \
-	wait
+	uv run vad-server
 
-# stop whatever holds the app's ports (server web+SIP, client web)
+# stop whatever holds the app's ports (server web+SIP, client web).
+# two passes (TERM then KILL) because `uv run` wrappers can outlive a plain
+# TERM and keep the UDP SIP socket bound.
 stop:
 	-@lsof -t -i tcp:8080 -i tcp:8081 -i udp:5060 2>/dev/null | sort -u | xargs kill 2>/dev/null; sleep 1; true
+	-@lsof -t -i tcp:8080 -i tcp:8081 -i udp:5060 2>/dev/null | sort -u | xargs kill -9 2>/dev/null; true
 	@echo "stopped (ports 8080/8081/5060 freed)"
 
 status:
@@ -19,6 +19,7 @@ status:
 setup: build-c
 	uv sync --group dev --extra client --extra ten || uv sync --group dev --extra client
 	./scripts/fetch_models.sh
+	./scripts/fetch_noise.sh
 
 build-c:
 	$(MAKE) -C third_party/unimrcp_vad
@@ -28,8 +29,13 @@ build-c:
 models:
 	./scripts/fetch_models.sh
 
+# real ambient noise (MS-SNSD) for the noisy fixtures; optional
+noise:
+	./scripts/fetch_noise.sh
+
 wavs:
 	uv run python scripts/make_test_wavs.py
+	uv run python scripts/make_noisy_wavs.py
 
 test:
 	uv run pytest

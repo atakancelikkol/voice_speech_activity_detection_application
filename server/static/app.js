@@ -29,6 +29,7 @@ const els = {
   enginePanel: document.getElementById("enginePanel"),
   metrics: document.getElementById("metrics"),
   recordBtn: document.getElementById("recordBtn"),
+  wavBtn: document.getElementById("wavBtn"),
   recHint: document.getElementById("recHint"),
   recLevelFill: document.getElementById("recLevelFill"),
 };
@@ -179,13 +180,15 @@ function renderRecorder(status) {
   const btn = els.recordBtn;
   if (!recorder.running) {
     btn.disabled = true;
+    els.wavBtn.disabled = true;
     btn.classList.remove("recording");
     btn.innerHTML = "&#127908; Record";
-    setRecHint("softphone client is not running — start it with `make run-client`", false);
+    setRecHint("softphone client starting… (if this persists, run `make run`)", false);
     els.recLevelFill.style.width = "0";
     return;
   }
   btn.disabled = recorder.busy;
+  els.wavBtn.disabled = recorder.busy || recorder.state !== "idle";
   if (recorder.state === "idle") {
     btn.classList.remove("recording");
     btn.innerHTML = "&#127908; Record";
@@ -241,6 +244,28 @@ els.recordBtn.onclick = async () => {
   } finally {
     recorder.busy = false;
     els.recordBtn.disabled = !recorder.running;
+  }
+};
+
+els.wavBtn.onclick = async () => {
+  if (recorder.busy || recorder.state !== "idle") return;
+  const path = prompt("Path to a WAV file on this machine:", "tests/fixtures/speech.wav");
+  if (!path) return;
+  recorder.busy = true;
+  els.wavBtn.disabled = true;
+  try {
+    setRecHint("streaming the file through the SIP path…", false);
+    const res = await fetch("/api/softphone/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: "wav", wav_path: path }),
+    });
+    if (!res.ok) setRecHint(await readErrorDetail(res), true);
+    else recorder.state = "active"; // the file plays out, then the call ends on its own
+  } catch (err) {
+    setRecHint(`request failed: ${err.message || err}`, true);
+  } finally {
+    recorder.busy = false;
   }
 };
 

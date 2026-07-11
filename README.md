@@ -43,31 +43,35 @@ make test      # birim testleri
 ## Kullanım
 
 ```sh
-make run     # önce eski süreçleri kapatır, sonra server + istemciyi birlikte başlatır
-             # (Ctrl-C ikisini de durdurur)
-make stop    # 8080/8081/5060 portlarını tutan ne varsa kapatır
+make run     # her şeyi başlatır (eskiyi kendisi kapatır)
+make stop    # çalışan her şeyi durdurur
 make status  # neyin çalıştığını gösterir
 ```
-
-Yeniden başlatmak için tek komut yeterlidir: `make run` (eskiyi kendisi kapatır).
 
 Sonra tarayıcıda **tek adres**: `http://127.0.0.1:8080`
 
 1. Sağ üstteki **🎤 Record** düğmesine basın, konuşun, **■ Stop** ile durdurun.
    (Düğme, arka planda softphone istemcisine gerçek bir SIP çağrısı açtırır —
-   ses RTP ile server'a akar, dört VAD motoru canlı çalışır.)
+   ses RTP ile server'a akar, dört VAD motoru canlı çalışır.) Kayıt yerine bir
+   ses dosyası denemek için **📁 WAV file…** düğmesini kullanın.
 2. Grafik konuşurken canlı dolar; durdurunca kayıt oturum olarak saklanır ve
    otomatik açılır: waveform + motor başına skor eğrisi ve segmentler.
-3. **Annotate** ile ground-truth bölgeleri işaretleyin (sürükle = oluştur,
-   kenar = boyutlandır, gövde = taşı, çift tık = sil), **Save annotations**
-   ile kaydedin — sağ panelde precision/recall/F1 tablosu belirir.
-4. Sağ paneldeki motor kartlarından motorları tek tıkla açıp kapatın,
-   parametreleri değiştirin (bir sonraki çağrıda geçerli olur).
+3. Sağ paneldeki motor kartlarından motorları açıp kapatın ve parametreleri
+   değiştirin. Bir oturum açıkken kart düğmesi **Re-analyze recording** olur:
+   parametreyi o kaydın üzerine anında (offline) uygular. **Re-analyze all**
+   tüm etkin motorları yeniden çalıştırır. (Oturum yokken parametreler bir
+   sonraki canlı çağrıda geçerli olur.)
+4. **Annotate** ile ground-truth (gerçek konuşma) bölgelerini işaretleyin
+   (sürükle = oluştur, kenar = boyutlandır, gövde = taşı, çift tık = sil),
+   **Save annotations** ile kaydedin — sağ panelde precision/recall/F1
+   tablosu belirir.
 
-İki süreç vardır ama ikinci arayüze normalde ihtiyaç yoktur:
-`http://127.0.0.1:8081` (softphone'un kendi ekranı) yalnızca WAV dosyası
-modunu elle kullanmak isterseniz gereklidir. Süreçleri ayrı terminallerde
-başlatmak isterseniz: `make run-server` ve `make run-client`.
+> Not: Uygulama aslında iki süreçten oluşur (server + softphone istemcisi),
+> çünkü gerçek bir SIP çağrısı simüle ediliyor. Ama bu bir ayrıntıdır: server
+> istemciyi kendisi başlatır, siz yalnızca **8080**'i kullanırsınız.
+> `http://127.0.0.1:8081` istemcinin kendi paneli olup normalde gerekmez.
+> İleri kullanım için süreçleri ayrı başlatmak isterseniz: `vad-server
+> --no-client` ve `make run-client`.
 
 ### Dosya ile tek seferlik çağrı (UI'sız)
 

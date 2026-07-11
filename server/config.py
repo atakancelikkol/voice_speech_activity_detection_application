@@ -18,3 +18,6 @@ class ServerConfig:
     data_dir: Path = field(default_factory=lambda: REPO_ROOT / "data" / "sessions")
     # local softphone client HTTP API, used by the one-button record proxy
     client_url: str = "http://127.0.0.1:8081"
+    # start the softphone client as a child process so the user only needs
+    # the main UI (:8080); its own page (:8081) stays an implementation detail
+    spawn_client: bool = True

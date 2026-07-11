@@ -1,0 +1,11 @@
+{
+  "rate": 8000,
+  "snr_db": 5,
+  "noise_source": "Babble_1.wav",
+  "speech_regions": [
+    {
+      "start_ms": 1020.0,
+      "end_ms": 6670.0
+    }
+  ]
+}
