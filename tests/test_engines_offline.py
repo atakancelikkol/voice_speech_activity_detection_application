@@ -42,15 +42,23 @@ def assert_matches(segments, regions, tolerance_ms: float):
 
 
 class TestUnimrcpVad:
+    # The shipped defaults are the recognizer engine's telephony production
+    # values (level_threshold 140, silence_timeout 1100 ms). The synthetic/say
+    # fixtures have 1000 ms gaps and modest levels, so these tests set
+    # test-appropriate params to exercise the core state machine rather than the
+    # deployment calibration. (Production values are the ParamSpec defaults the
+    # UI shows.)
+    BASE = {"level_threshold": 2, "speech_timeout": 300, "silence_timeout": 300}
+
     def test_pattern1_segments(self):
         wav = FIXTURES / "pattern1.wav"
-        segments, _ = run_engine("unimrcp_vad", wav)
+        segments, _ = run_engine("unimrcp_vad", wav, self.BASE)
         # backdating brings starts within one transition of the truth
         assert_matches(segments, expected_regions(wav), tolerance_ms=350.0)
 
     def test_speech_segments(self):
         wav = FIXTURES / "speech.wav"
-        segments, _ = run_engine("unimrcp_vad", wav)
+        segments, _ = run_engine("unimrcp_vad", wav, self.BASE)
         assert segments, "no speech detected in real speech fixture"
         regions = expected_regions(wav)
         # detector may split on pauses; the union must cover the spoken region

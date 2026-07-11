@@ -53,15 +53,17 @@ def _load_lib() -> ctypes.CDLL:
 class Engine(VadEngine):
     name = "unimrcp_vad"
     display_name = "unimrcp (energy)"
-    # Defaults mirror UniMRCP's mpf_activity_detector (level_threshold=2,
-    # timeouts in ms) and map 1:1 to its setters. The threshold is compared
-    # against a frame's mean |sample| of 16-bit linear PCM, so it ranges far
-    # above the "0..255" the original source comment suggests; the range is
-    # opened up here so the energy gate can actually be tuned upward.
+    # Defaults are the production values the recognizer engine configures
+    # (arf-recog-kursat/src/arf_recog_engine.c channel setup) rather than
+    # mpf_activity_detector's bare defaults (level_threshold=2). The threshold
+    # is a frame's mean |sample| of 16-bit linear PCM; it ranges well above the
+    # "0..255" the source comment implies, so the range stays open for tuning.
+    # noinput_timeout comes from the MRCP no-input-timeout header at runtime;
+    # 5 s is a sane default here.
     params = [
-        ParamSpec("level_threshold", "Level threshold", "int", 2, 0, 8000, 1),
-        ParamSpec("speech_timeout", "Speech timeout", "int", 300, 0, 5000, 10, "ms"),
-        ParamSpec("silence_timeout", "Silence timeout", "int", 300, 0, 5000, 10, "ms"),
+        ParamSpec("level_threshold", "Level threshold", "int", 140, 0, 8000, 1),
+        ParamSpec("speech_timeout", "Speech timeout", "int", 350, 0, 5000, 10, "ms"),
+        ParamSpec("silence_timeout", "Silence timeout", "int", 1100, 0, 5000, 10, "ms"),
         ParamSpec("noinput_timeout", "No-input timeout", "int", 5000, 0, 60000, 100, "ms"),
     ]
 
