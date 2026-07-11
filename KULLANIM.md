@@ -55,6 +55,18 @@ Sağ paneldeki motor kartları:
   üzerine **anında (offline)** uygular — yeni çağrı yapmanıza gerek yok.
   Üstteki **"Re-analyze all"** tüm motorları birden yeniden çalıştırır.
 
+Sağ panelin üstündeki **Audio Enhancer** bölümü (ses iyileştirme, ön-işleme):
+- Onay kutusuyla enhancer'ı **aç/kapa**. Açıkken gelen ses önce iyileştirilir,
+  sonra hem grafiğe hem tüm VAD motorlarına hem kayda **iyileştirilmiş** hâliyle
+  gider (oturum başlığında "enhanced: arf_enhance" rozeti çıkar).
+- `arf_enhance` bir spektral gürültü azaltma (denoise) + high-pass + de-muffle
+  shelf + leveler zinciridir; 8 ve 16 kHz'de çalışır. Varsayılan zincir sesi
+  netleştirir ama **gürültüyü azaltmak için `Denoise (spectral)` kutusunu açın**
+  (`Denoise over-subtraction` gücü artırır). Parametreler **"Apply (next call)"**
+  ile bir sonraki çağrıda geçerli olur.
+- Enhancer'ı açıp kapatarak aynı gürültülü kayıtta VAD sonuçlarının nasıl
+  değiştiğini karşılaştırabilirsiniz.
+
 Diğer araçlar:
 - **Annotate** — timeline'da "gerçek konuşma" bölgelerini işaretleyin
   (sürükle = oluştur, kenar = boyutlandır, gövde = taşı, çift tık = sil),
