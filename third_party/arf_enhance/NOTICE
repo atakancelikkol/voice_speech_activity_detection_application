@@ -1,0 +1,12 @@
+arf_enhance — standalone extraction of the arf-recog-adaptive-vad audio enhancer
+
+This directory contains code derived from the arf-recog-adaptive-vad UniMRCP
+plugin, specifically:
+
+  src/arf_audio_enhance.c
+  src/arf_audio_enhance.h
+
+An STFT-based speech enhancer: Ephraim-Malah spectral-subtraction denoise,
+adaptive high-pass de-boom, high-shelf de-muffle, a pumping-free leveler and a
+soft-knee limiter. The DSP is unchanged; see arf_enhance.h for the list of
+mechanical modifications made to remove the APR dependency.

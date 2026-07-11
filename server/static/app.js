@@ -9,6 +9,7 @@ const FALLBACK_COLORS = ["#4dabf7", "#f783ac", "#a9e34b", "#ffd43b"];
 
 const state = {
   engines: [],
+  enhancers: [],
   currentSession: null, // session id being viewed
   liveSession: null,
   annotationsDirty: false,
@@ -27,6 +28,7 @@ const els = {
   annotateBtn: document.getElementById("annotateBtn"),
   saveAnnoBtn: document.getElementById("saveAnnoBtn"),
   enginePanel: document.getElementById("enginePanel"),
+  enhancerPanel: document.getElementById("enhancerPanel"),
   metrics: document.getElementById("metrics"),
   recordBtn: document.getElementById("recordBtn"),
   wavBtn: document.getElementById("wavBtn"),
@@ -89,7 +91,8 @@ function renderSession(session, { preserveView = false } = {}) {
     timeline.view = view;
     timeline.requestRender();
   }
-  els.title.textContent = `${session.id} (${(session.duration_ms / 1000).toFixed(1)}s)`;
+  const enhanced = session.enhancer && session.enhancer.name ? ` · enhanced: ${session.enhancer.name}` : "";
+  els.title.textContent = `${session.id} (${(session.duration_ms / 1000).toFixed(1)}s)${enhanced}`;
   audio.src = `/api/sessions/${session.id}/audio.wav`;
   audio.style.display = "";
   els.reanalyzeBtn.style.display = "";
@@ -402,6 +405,85 @@ async function putEngine(name, body) {
   }
 }
 
+/* ---------- enhancer panel (audio pre-processing) ---------- */
+
+const ENHANCER_COLOR = "#4dd4c4";
+
+async function refreshEnhancers() {
+  state.enhancers = await (await fetch("/api/enhancers")).json();
+  renderEnhancerPanel();
+}
+
+function renderEnhancerPanel() {
+  els.enhancerPanel.innerHTML = "";
+  for (const enh of state.enhancers) {
+    const card = document.createElement("div");
+    card.className = "engineCard" + (enh.available ? "" : " unavailable");
+    const head = document.createElement("div");
+    head.className = "head";
+    head.innerHTML = `<span class="swatch" style="background:${ENHANCER_COLOR}"></span>
+      <span class="name">${enh.display_name}</span>`;
+    const toggle = document.createElement("input");
+    toggle.type = "checkbox";
+    toggle.checked = enh.enabled;
+    toggle.disabled = !enh.available;
+    toggle.onchange = () => putEnhancer(enh.name, { enabled: toggle.checked });
+    head.appendChild(toggle);
+    card.appendChild(head);
+    if (!enh.available) {
+      const reason = document.createElement("div");
+      reason.className = "reason";
+      reason.textContent = enh.reason;
+      card.appendChild(reason);
+    } else if (enh.params.length) {
+      const grid = document.createElement("div");
+      grid.className = "params";
+      const inputs = {};
+      for (const spec of enh.params) {
+        const label = document.createElement("label");
+        label.textContent = spec.unit ? `${spec.label} (${spec.unit})` : spec.label;
+        const input = document.createElement("input");
+        if (spec.type === "bool") {
+          input.type = "checkbox";
+          input.checked = Boolean(enh.values[spec.name]);
+        } else {
+          input.type = "number";
+          if (spec.min != null) input.min = spec.min;
+          if (spec.max != null) input.max = spec.max;
+          if (spec.step != null) input.step = spec.step;
+          input.value = enh.values[spec.name];
+        }
+        inputs[spec.name] = input;
+        grid.append(label, input);
+      }
+      card.appendChild(grid);
+      const apply = document.createElement("button");
+      apply.className = "apply";
+      apply.textContent = "Apply (next call)";
+      apply.onclick = () => {
+        const params = {};
+        for (const [name, input] of Object.entries(inputs))
+          params[name] = input.type === "checkbox" ? input.checked : Number(input.value);
+        putEnhancer(enh.name, { params });
+      };
+      card.appendChild(apply);
+    }
+    els.enhancerPanel.appendChild(card);
+  }
+}
+
+async function putEnhancer(name, body) {
+  const res = await fetch(`/api/enhancers/${name}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (res.ok) {
+    state.enhancers = await res.json();
+    renderEnhancerPanel();
+  }
+}
+
 /* ---------- annotations + metrics ---------- */
 
 function setAnnotationEditing(on) {
@@ -494,6 +576,7 @@ els.saveAnnoBtn.onclick = saveAnnotations;
 els.reanalyzeBtn.onclick = reanalyzeAll;
 
 refreshEngines();
+refreshEnhancers();
 refreshSessions().then(async () => {
   const first = els.sessionList.querySelector("li");
   if (first) openSession(first.dataset.id);

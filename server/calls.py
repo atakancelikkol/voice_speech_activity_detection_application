@@ -16,6 +16,7 @@ import numpy as np
 
 from server.analysis import grid_scores
 from server.api.ws import Hub
+from server.enhance.base import SpeechHint
 from server.audio.peaks import PeaksBinner
 from server.audio.wav_writer import WavWriter
 from server.engines_state import EngineManager
@@ -37,6 +38,8 @@ class CallPipeline:
         engine_configs: dict[str, dict],
         hub: Hub | None,
         call_id: str,
+        enhancer=None,
+        enhancer_config: dict | None = None,
     ):
         self.session_id = session_id
         self.session_dir = session_dir
@@ -44,6 +47,10 @@ class CallPipeline:
         self.engine_configs = engine_configs
         self.hub = hub
         self.started_at = time.time()
+        # optional pre-processing: clean the audio before peaks/engines/recording
+        self.enhancer = enhancer
+        self.enhancer_config = enhancer_config or {}
+        self._hint = SpeechHint(SOURCE_RATE) if enhancer is not None else None
         self.runners = {name: EngineRunner(engine) for name, engine in engines.items()}
         self.wav = WavWriter(session_dir / "audio.wav", SOURCE_RATE)
         self.binner = PeaksBinner(SOURCE_RATE * PEAK_BIN_MS // 1000)
@@ -63,6 +70,9 @@ class CallPipeline:
     def on_audio(self, pcm: np.ndarray) -> None:
         if self._finalized:
             return
+        if self.enhancer is not None:
+            # enhance first: waveform, engines and recording all see cleaned audio
+            pcm = self.enhancer.process(pcm, self._hint.update(pcm))
         self.wav.append(pcm)
         new_peaks = self.binner.feed(pcm)
         self.peaks.extend(new_peaks)
@@ -161,6 +171,8 @@ class CallPipeline:
             }
         duration = self.duration_ms
         self.wav.close()
+        if self.enhancer is not None:
+            self.enhancer.close()
         payload = {
             "id": self.session_id,
             "call_id": self.call_id,
@@ -169,6 +181,7 @@ class CallPipeline:
             "sample_rate": SOURCE_RATE,
             "peaks": {"t0_ms": 0, "dt_ms": PEAK_BIN_MS, "values": self.peaks},
             "rtp": self.rtp_stats or {},
+            "enhancer": self.enhancer_config,  # {} when no enhancer ran
             "engines": engines_payload,
         }
         if self.hub:
@@ -186,10 +199,13 @@ WATCHDOG_INTERVAL_S = 5.0
 class CallManager:
     """Owns RTP ports and the pipeline for the (single) active call."""
 
-    def __init__(self, config, store: SessionStore, engine_manager: EngineManager, hub: Hub | None):
+    def __init__(
+        self, config, store: SessionStore, engine_manager: EngineManager, hub: Hub | None, enhancer_manager=None
+    ):
         self.config = config
         self.store = store
         self.engine_manager = engine_manager
+        self.enhancer_manager = enhancer_manager
         self.hub = hub
         self.on_call_ended = None  # set by the SIP UAS to drop its dialog state
         self._free_ports = list(range(config.rtp_port_min, config.rtp_port_max + 1, 2))
@@ -204,8 +220,22 @@ class CallManager:
         rtp_port = self._free_ports.pop(0)
         session_id, session_dir = self.store.new_session_dir(call_id)
         engines = self.engine_manager.instantiate_enabled()
+        enhancer = None
+        enhancer_config: dict = {}
+        if self.enhancer_manager is not None:
+            enhancer = self.enhancer_manager.instantiate_active(SOURCE_RATE)
+            if enhancer is not None:
+                name = self.enhancer_manager.active_name()
+                enhancer_config = {"name": name, **self.enhancer_manager.config_of(name)}
         pipeline = CallPipeline(
-            session_id, session_dir, engines, self.engine_manager.active_configs(), self.hub, call_id
+            session_id,
+            session_dir,
+            engines,
+            self.engine_manager.active_configs(),
+            self.hub,
+            call_id,
+            enhancer,
+            enhancer_config,
         )
         transport, protocol = await open_rtp_receiver(self.config.host, rtp_port, pipeline.on_audio)
         loop = asyncio.get_running_loop()

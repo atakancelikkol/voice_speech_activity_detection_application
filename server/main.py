@@ -19,6 +19,7 @@ from server.calls import CallManager
 from server.client_supervisor import ClientSupervisor
 from server.config import ServerConfig
 from server.engines_state import EngineManager
+from server.enhance.manager import EnhancerManager
 from server.sessions.store import SessionStore
 from server.sip.uas import start_uas
 from server.softphone import SoftphoneProxy
@@ -30,9 +31,12 @@ class ServerState:
     def __init__(self, config: ServerConfig):
         self.config = config
         self.engine_manager = EngineManager()
+        self.enhancer_manager = EnhancerManager()
         self.store = SessionStore(config.data_dir)
         self.hub = Hub()
-        self.call_manager = CallManager(config, self.store, self.engine_manager, self.hub)
+        self.call_manager = CallManager(
+            config, self.store, self.engine_manager, self.hub, self.enhancer_manager
+        )
         self.softphone = SoftphoneProxy(config.client_url)
 
 

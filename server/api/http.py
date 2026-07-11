@@ -60,6 +60,20 @@ def build_app(state) -> FastAPI:
             raise HTTPException(422, str(exc))
         return state.engine_manager.snapshot()
 
+    @app.get("/api/enhancers")
+    def get_enhancers():
+        return state.enhancer_manager.snapshot()
+
+    @app.put("/api/enhancers/{name}")
+    def put_enhancer(name: str, update: EngineUpdate):
+        try:
+            state.enhancer_manager.configure(name, update.enabled, update.params)
+        except KeyError:
+            raise HTTPException(404, f"no such enhancer: {name}")
+        except ValueError as exc:
+            raise HTTPException(422, str(exc))
+        return state.enhancer_manager.snapshot()
+
     @app.get("/api/sessions")
     def get_sessions():
         return state.store.list_sessions()
