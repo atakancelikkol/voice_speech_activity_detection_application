@@ -186,6 +186,7 @@ class CallPipeline:
 
 
 RTP_IDLE_TIMEOUT_S = 30.0
+WATCHDOG_INTERVAL_S = 5.0
 
 
 class CallManager:
@@ -230,7 +231,7 @@ class CallManager:
         """Tear the call down if the peer vanishes without a BYE."""
         loop = asyncio.get_running_loop()
         while True:
-            await asyncio.sleep(5.0)
+            await asyncio.sleep(WATCHDOG_INTERVAL_S)
             entry = self._active.get(call_id)
             if entry is None:
                 return

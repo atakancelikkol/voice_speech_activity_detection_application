@@ -179,11 +179,16 @@ function renderEnginePanel() {
         const label = document.createElement("label");
         label.textContent = spec.unit ? `${spec.label} (${spec.unit})` : spec.label;
         const input = document.createElement("input");
-        input.type = "number";
-        if (spec.min != null) input.min = spec.min;
-        if (spec.max != null) input.max = spec.max;
-        if (spec.step != null) input.step = spec.step;
-        input.value = engine.values[spec.name];
+        if (spec.type === "bool") {
+          input.type = "checkbox";
+          input.checked = Boolean(engine.values[spec.name]);
+        } else {
+          input.type = "number";
+          if (spec.min != null) input.min = spec.min;
+          if (spec.max != null) input.max = spec.max;
+          if (spec.step != null) input.step = spec.step;
+          input.value = engine.values[spec.name];
+        }
         inputs[spec.name] = input;
         grid.append(label, input);
       }
@@ -193,7 +198,8 @@ function renderEnginePanel() {
       apply.textContent = "Apply (next call)";
       apply.onclick = () => {
         const params = {};
-        for (const [name, input] of Object.entries(inputs)) params[name] = Number(input.value);
+        for (const [name, input] of Object.entries(inputs))
+          params[name] = input.type === "checkbox" ? input.checked : Number(input.value);
         putEngine(engine.name, { params });
       };
       card.appendChild(apply);
