@@ -67,11 +67,12 @@ Sonra tarayıcıda **tek adres**: `http://127.0.0.1:8080`
    tablosu belirir.
 
 > Not: Uygulama aslında iki süreçten oluşur (server + softphone istemcisi),
-> çünkü gerçek bir SIP çağrısı simüle ediliyor. Ama bu bir ayrıntıdır: server
-> istemciyi kendisi başlatır, siz yalnızca **8080**'i kullanırsınız.
-> `http://127.0.0.1:8081` istemcinin kendi paneli olup normalde gerekmez.
-> İleri kullanım için süreçleri ayrı başlatmak isterseniz: `vad-server
-> --no-client` ve `make run-client`.
+> çünkü gerçek bir SIP çağrısı simüle ediliyor. Ama bu tamamen bir ayrıntıdır:
+> server istemciyi kendisi başlatır ve siz yalnızca **8080**'i kullanırsınız.
+> `http://127.0.0.1:8081`'in kendi arayüzü **yoktur** — oraya girerseniz sizi
+> otomatik 8080'e yönlendiren bir bilgi sayfası görürsünüz. (İleri kullanım
+> için süreçleri ayrı başlatmak isterseniz: `vad-server --no-client` ve
+> `make run-client`.)
 
 ### Dosya ile tek seferlik çağrı (UI'sız)
 

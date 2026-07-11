@@ -74,8 +74,11 @@ def main(argv=None) -> None:
         log.info("engine %-14s %s", entry["name"], status)
 
     app = build_app(state)
+    main_url = f"http://{config.host}:{config.http_port}"
     supervisor = (
-        ClientSupervisor(config.client_url, config.sip_port, config.host) if config.spawn_client else None
+        ClientSupervisor(config.client_url, config.sip_port, config.host, main_url)
+        if config.spawn_client
+        else None
     )
 
     @contextlib.asynccontextmanager

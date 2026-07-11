@@ -120,6 +120,26 @@ class TestWavCallOverSip:
             await wait_for(lambda: controller.state == "idle", 30.0, "call did not finish")
         assert len(sip_server.store.list_sessions()) == 2
 
+    async def test_noisy_file_survives_the_sip_path(self, sip_server, fast_streaming):
+        noisy = FIXTURE.parent / "noisy_snr5.wav"
+        if not noisy.exists():
+            pytest.skip("noisy fixture missing — run `make wavs`")
+        controller = make_client(noisy)
+        await controller.start_call("wav", str(noisy))
+        await wait_for(lambda: controller.state == "idle", 30.0, "call did not finish")
+
+        session = sip_server.store.read_session(sip_server.store.list_sessions()[0]["id"])
+        assert session["rtp"]["lost"] == 0
+        # heavy babble noise, but the SIP-delivered analysis still matches the
+        # offline analysis of the same file for every engine
+        offline = offline_segments(noisy)
+        assert set(session["engines"]) == set(offline)
+        for name, result in session["engines"].items():
+            got = [(s["start_ms"], s["end_ms"]) for s in result["segments"]]
+            assert len(got) == len(offline[name]), f"{name}: {got} vs offline {offline[name]}"
+            for (gs, ge), (ws, we) in zip(got, offline[name]):
+                assert abs(gs - ws) <= 64.0 and abs(ge - we) <= 64.0
+
 
 class TestRtpIdleWatchdog:
     async def test_vanished_peer_gets_cleaned_up(self, sip_server, fast_streaming, monkeypatch):

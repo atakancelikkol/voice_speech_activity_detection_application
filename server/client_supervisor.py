@@ -22,10 +22,17 @@ log = logging.getLogger("client-supervisor")
 
 
 class ClientSupervisor:
-    def __init__(self, client_url: str, server_sip_port: int, server_host: str = "127.0.0.1"):
+    def __init__(
+        self,
+        client_url: str,
+        server_sip_port: int,
+        server_host: str = "127.0.0.1",
+        main_url: str = "http://127.0.0.1:8080",
+    ):
         self.client_url = client_url.rstrip("/")
         self.server_sip_port = server_sip_port
         self.server_host = server_host
+        self.main_url = main_url
         parsed = urlparse(self.client_url)
         self.ui_port = parsed.port or 8081
         self._proc: subprocess.Popen | None = None
@@ -51,6 +58,8 @@ class ClientSupervisor:
             str(self.server_sip_port),
             "--ui-port",
             str(self.ui_port),
+            "--main-url",
+            self.main_url,
         ]
         log.info("starting softphone client: %s", " ".join(cmd))
         self._proc = subprocess.Popen(cmd)

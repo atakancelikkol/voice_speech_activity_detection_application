@@ -46,6 +46,21 @@ async def test_status_roundtrip(client_ui):
     assert status == {"state": "idle", "error": None, "level": 0.0}
 
 
+async def test_root_is_a_redirect_placeholder_not_a_softphone_ui(client_ui):
+    import urllib.request
+
+    # the client has no UI of its own anymore: root just points at the main app.
+    # fetch off-loop (a sync urlopen here would block the loop serving it)
+    def fetch():
+        with urllib.request.urlopen(f"http://127.0.0.1:{CLIENT_UI_PORT}/", timeout=2) as resp:
+            return resp.read().decode()
+
+    html = await asyncio.to_thread(fetch)
+    assert "127.0.0.1:8080" in html
+    assert "internal service" in html
+    assert "Record" not in html  # no call controls here
+
+
 async def test_start_error_passes_through(client_ui):
     proxy = SoftphoneProxy(f"http://127.0.0.1:{CLIENT_UI_PORT}")
     code, body = await proxy.start("wav", "no-such-file.wav")

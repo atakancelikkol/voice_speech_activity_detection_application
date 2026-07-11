@@ -21,8 +21,6 @@ from server.sip.sdp import build_sdp, parse_sdp
 
 log = logging.getLogger("client")
 
-STATIC_DIR = Path(__file__).resolve().parent / "static"
-
 
 class StartRequest(BaseModel):
     mode: str  # "mic" | "wav"
@@ -146,17 +144,34 @@ async def one_shot(args) -> None:
     await done.wait()
 
 
-def build_ui_app(controller: CallController):
+def _placeholder_page(main_url: str) -> str:
+    # This process only exists to place SIP calls for the main app; it has no
+    # UI of its own. Anyone who lands here is redirected to the real app so
+    # the two-port setup never causes confusion.
+    return f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>VAD softphone (internal)</title>
+<meta http-equiv="refresh" content="3;url={main_url}">
+<style>body{{font-family:system-ui,sans-serif;background:#14161a;color:#e8e8e8;
+display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center}}
+a{{color:#4dabf7}}.box{{max-width:460px;padding:24px}}</style></head>
+<body><div class="box">
+<h1>Nothing to see here</h1>
+<p>This is the <b>softphone client's internal service</b> — the piece that places
+the real SIP call for the app. It has no controls of its own.</p>
+<p>Open the app here instead:<br><a href="{main_url}">{main_url}</a></p>
+<p style="color:#9aa;font-size:13px">(redirecting automatically…)</p>
+</div></body></html>"""
+
+
+def build_ui_app(controller: CallController, main_url: str = "http://127.0.0.1:8080"):
     from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
-    from fastapi.staticfiles import StaticFiles
+    from fastapi.responses import HTMLResponse
 
-    app = FastAPI(title="VAD Softphone")
+    app = FastAPI(title="VAD Softphone (internal)")
 
-    @app.middleware("http")
-    async def revalidate_static(request, call_next):
-        response = await call_next(request)
-        response.headers.setdefault("Cache-Control", "no-cache")
-        return response
+    @app.get("/", response_class=HTMLResponse)
+    def index():
+        return _placeholder_page(main_url)
 
     @app.post("/call/start")
     async def call_start(start: StartRequest):
@@ -185,7 +200,6 @@ def build_ui_app(controller: CallController):
         except (WebSocketDisconnect, RuntimeError):
             pass
 
-    app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
     return app
 
 
@@ -196,6 +210,7 @@ def parse_args(argv=None):
     parser.add_argument("--bind-ip", default="127.0.0.1")
     parser.add_argument("--rtp-port", type=int, default=40100)
     parser.add_argument("--ui-port", type=int, default=8081)
+    parser.add_argument("--main-url", default="http://127.0.0.1:8080", help="where to redirect stray visitors")
     parser.add_argument("--wav", help="stream this WAV file instead of the microphone")
     parser.add_argument("--no-ui", action="store_true", help="one-shot call (requires --wav), then exit")
     return parser.parse_args(argv)
@@ -214,8 +229,8 @@ def main(argv=None) -> None:
     controller = CallController(args)
     if args.wav:
         log.info("WAV mode default: %s", args.wav)
-    app = build_ui_app(controller)
-    log.info("softphone UI on http://127.0.0.1:%d", args.ui_port)
+    app = build_ui_app(controller, main_url=args.main_url)
+    log.info("softphone internal service on http://127.0.0.1:%d (use the app at %s)", args.ui_port, args.main_url)
     uvicorn.run(app, host="127.0.0.1", port=args.ui_port, log_level="warning")
 
 
