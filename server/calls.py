@@ -14,6 +14,7 @@ from pathlib import Path
 
 import numpy as np
 
+from server.analysis import grid_scores
 from server.api.ws import Hub
 from server.audio.peaks import PeaksBinner
 from server.audio.wav_writer import WavWriter
@@ -25,7 +26,6 @@ from server.vad.runner import SOURCE_RATE, EngineRunner, TimedScore
 
 PEAK_BIN_MS = 10
 FLUSH_INTERVAL_S = 0.1
-SCORE_GRID_MS = 10
 
 
 class CallPipeline:
@@ -176,13 +176,7 @@ class CallPipeline:
         return payload
 
     def _grid_scores(self, scores: list[TimedScore]) -> dict:
-        n = int(self.duration_ms // SCORE_GRID_MS) + 1
-        values = np.zeros(n, dtype=np.float32)
-        for s in scores:
-            lo = int(s.t_ms // SCORE_GRID_MS)
-            hi = min(n, int((s.t_ms + s.frame_ms) // SCORE_GRID_MS) + 1)
-            values[lo:hi] = s.score
-        return {"t0_ms": 0, "dt_ms": SCORE_GRID_MS, "values": [round(float(v), 4) for v in values]}
+        return grid_scores(scores, self.duration_ms)
 
 
 RTP_IDLE_TIMEOUT_S = 30.0

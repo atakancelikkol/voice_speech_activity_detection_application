@@ -27,6 +27,10 @@ class SoftphoneStart(BaseModel):
     wav_path: str | None = None
 
 
+class Reanalyze(BaseModel):
+    engines: list[str] | None = None  # None = all currently enabled engines
+
+
 def build_app(state) -> FastAPI:
     """state: object with .engine_manager, .store, .hub, .call_manager"""
     app = FastAPI(title="VAD Comparison Server")
@@ -91,6 +95,22 @@ def build_app(state) -> FastAPI:
         except (KeyError, ValueError):
             raise HTTPException(404, f"no such session: {session_id}")
         return {"ok": True}
+
+    @app.post("/api/sessions/{session_id}/reanalyze")
+    async def reanalyze_session(session_id: str, payload: Reanalyze):
+        from server.analysis import reanalyze_session as run_reanalyze
+
+        try:
+            # offline, CPU-bound; keep the event loop responsive
+            session = await asyncio.to_thread(
+                run_reanalyze, state.store, state.engine_manager, session_id, payload.engines
+            )
+        except (KeyError, FileNotFoundError):
+            raise HTTPException(404, f"no such session: {session_id}")
+        except ValueError as exc:
+            raise HTTPException(422, str(exc))
+        session["annotations"] = state.store.read_annotations(session_id)
+        return session
 
     @app.get("/api/softphone")
     async def softphone_status():

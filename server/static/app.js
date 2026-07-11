@@ -23,6 +23,7 @@ const els = {
   title: document.getElementById("sessionTitle"),
   followBtn: document.getElementById("followBtn"),
   fitBtn: document.getElementById("fitBtn"),
+  reanalyzeBtn: document.getElementById("reanalyzeBtn"),
   annotateBtn: document.getElementById("annotateBtn"),
   saveAnnoBtn: document.getElementById("saveAnnoBtn"),
   enginePanel: document.getElementById("enginePanel"),
@@ -59,8 +60,14 @@ async function refreshSessions() {
 async function openSession(id) {
   const res = await fetch(`/api/sessions/${id}`);
   if (!res.ok) return;
-  const session = await res.json();
-  state.currentSession = id;
+  renderSession(await res.json());
+}
+
+// Draw a session payload. preserveView keeps the current zoom/pan (used by
+// re-analyze so tuning doesn't reset the graph the user is inspecting).
+function renderSession(session, { preserveView = false } = {}) {
+  const view = { ...timeline.view };
+  state.currentSession = session.id;
   state.annotationsDirty = false;
   const lanes = Object.entries(session.engines).map(([name, r]) => ({
     name,
@@ -76,9 +83,14 @@ async function openSession(id) {
     annotations: (session.annotations?.speech_regions || []).map((r) => ({ ...r })),
     live: false,
   });
-  els.title.textContent = `${id} (${(session.duration_ms / 1000).toFixed(1)}s)`;
-  audio.src = `/api/sessions/${id}/audio.wav`;
+  if (preserveView) {
+    timeline.view = view;
+    timeline.requestRender();
+  }
+  els.title.textContent = `${session.id} (${(session.duration_ms / 1000).toFixed(1)}s)`;
+  audio.src = `/api/sessions/${session.id}/audio.wav`;
   audio.style.display = "";
+  els.reanalyzeBtn.style.display = "";
   setAnnotationEditing(false);
   renderMetrics();
   refreshSessions();
@@ -100,6 +112,7 @@ function startLiveView(sessionId) {
   audio.style.display = "none";
   setAnnotationEditing(false);
   els.metrics.innerHTML = "";
+  els.reanalyzeBtn.style.display = "none"; // no offline re-run during a live call
 }
 
 function handleMessage(msg) {
@@ -283,16 +296,65 @@ function renderEnginePanel() {
       card.appendChild(grid);
       const apply = document.createElement("button");
       apply.className = "apply";
-      apply.textContent = "Apply (next call)";
+      // with a recorded session open, tuning re-runs it offline immediately;
+      // otherwise the params just wait for the next live call
+      apply.textContent = hasRecordedSession() ? "Re-analyze recording" : "Apply (next call)";
       apply.onclick = () => {
         const params = {};
         for (const [name, input] of Object.entries(inputs))
           params[name] = input.type === "checkbox" ? input.checked : Number(input.value);
-        putEngine(engine.name, { params });
+        applyOrReanalyze(engine.name, params, apply);
       };
       card.appendChild(apply);
     }
     els.enginePanel.appendChild(card);
+  }
+}
+
+function hasRecordedSession() {
+  return Boolean(state.currentSession) && !timeline.live;
+}
+
+async function applyOrReanalyze(name, params, btn) {
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/api/engines/${name}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ params }),
+    });
+    if (res.ok) state.engines = await res.json();
+    if (hasRecordedSession()) {
+      btn.textContent = "Analyzing…";
+      const r = await fetch(`/api/sessions/${state.currentSession}/reanalyze`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ engines: [name] }),
+      });
+      if (r.ok) renderSession(await r.json(), { preserveView: true });
+      else btn.textContent = await readErrorDetail(r);
+    }
+  } catch (err) {
+    btn.textContent = `failed: ${err.message || err}`;
+  } finally {
+    renderEnginePanel();
+  }
+}
+
+async function reanalyzeAll() {
+  if (!hasRecordedSession()) return;
+  els.reanalyzeBtn.disabled = true;
+  els.reanalyzeBtn.textContent = "Analyzing…";
+  try {
+    const r = await fetch(`/api/sessions/${state.currentSession}/reanalyze`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ engines: null }), // all enabled engines
+    });
+    if (r.ok) renderSession(await r.json(), { preserveView: true });
+  } finally {
+    els.reanalyzeBtn.disabled = false;
+    els.reanalyzeBtn.textContent = "Re-analyze all";
   }
 }
 
@@ -397,6 +459,7 @@ els.followBtn.onclick = () => {
 els.fitBtn.onclick = () => timeline.fit();
 els.annotateBtn.onclick = () => setAnnotationEditing(!timeline.annotationEditing);
 els.saveAnnoBtn.onclick = saveAnnotations;
+els.reanalyzeBtn.onclick = reanalyzeAll;
 
 refreshEngines();
 refreshSessions().then(async () => {

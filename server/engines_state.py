@@ -54,12 +54,21 @@ class EngineManager:
             engines[name] = registry.create(info, self.params[name])
         return engines
 
+    def instantiate(self, name: str) -> VadEngine:
+        """One engine with its current params, regardless of enabled state
+        (used to re-apply tuned params to an existing recording)."""
+        info = self.infos.get(name)
+        if info is None:
+            raise KeyError(name)
+        return registry.create(info, self.params[name])
+
+    def config_of(self, name: str) -> dict[str, Any]:
+        info = self.infos[name]
+        return {spec.name: self.params[name].get(spec.name, spec.default) for spec in info.params}
+
     def active_configs(self) -> dict[str, dict[str, Any]]:
         return {
-            name: {
-                spec.name: self.params[name].get(spec.name, spec.default)
-                for spec in self.infos[name].params
-            }
+            name: self.config_of(name)
             for name in self.infos
             if self.enabled[name] and self.infos[name].available
         }
