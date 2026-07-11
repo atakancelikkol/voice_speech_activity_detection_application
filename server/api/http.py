@@ -22,9 +22,23 @@ class Annotations(BaseModel):
     speech_regions: list[dict]
 
 
+class SoftphoneStart(BaseModel):
+    mode: str = "mic"
+    wav_path: str | None = None
+
+
 def build_app(state) -> FastAPI:
     """state: object with .engine_manager, .store, .hub, .call_manager"""
     app = FastAPI(title="VAD Comparison Server")
+
+    @app.middleware("http")
+    async def revalidate_static(request, call_next):
+        # frontend files change with the code; force ETag revalidation so
+        # browsers never run a stale app.js against a new API
+        response = await call_next(request)
+        if not request.url.path.startswith("/api"):
+            response.headers["Cache-Control"] = "no-cache"
+        return response
 
     @app.get("/api/engines")
     def get_engines():
@@ -77,6 +91,25 @@ def build_app(state) -> FastAPI:
         except (KeyError, ValueError):
             raise HTTPException(404, f"no such session: {session_id}")
         return {"ok": True}
+
+    @app.get("/api/softphone")
+    async def softphone_status():
+        status = await state.softphone.status()
+        return {"running": status is not None, "status": status}
+
+    @app.post("/api/softphone/start")
+    async def softphone_start(start: SoftphoneStart):
+        code, body = await state.softphone.start(start.mode, start.wav_path)
+        if code != 200:
+            raise HTTPException(code, body.get("detail", "softphone error"))
+        return body
+
+    @app.post("/api/softphone/stop")
+    async def softphone_stop():
+        code, body = await state.softphone.stop()
+        if code != 200:
+            raise HTTPException(code, body.get("detail", "softphone error"))
+        return body
 
     @app.websocket("/ws")
     async def ws_endpoint(ws: WebSocket):

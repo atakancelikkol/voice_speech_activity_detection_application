@@ -152,6 +152,12 @@ def build_ui_app(controller: CallController):
 
     app = FastAPI(title="VAD Softphone")
 
+    @app.middleware("http")
+    async def revalidate_static(request, call_next):
+        response = await call_next(request)
+        response.headers.setdefault("Cache-Control", "no-cache")
+        return response
+
     @app.post("/call/start")
     async def call_start(start: StartRequest):
         try:

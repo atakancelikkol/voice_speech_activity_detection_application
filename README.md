@@ -43,23 +43,26 @@ make test      # birim testleri
 ## Kullanım
 
 ```sh
-# Terminal 1 — server (SIP: udp/5060, web: http://127.0.0.1:8080)
-make run-server
-
-# Terminal 2 — softphone istemci (web UI: http://127.0.0.1:8081)
-make run-client
+make run    # server + softphone istemciyi birlikte başlatır (Ctrl-C ikisini de durdurur)
 ```
 
-1. Tarayıcıda `http://127.0.0.1:8080` (karşılaştırma grafiği) ve
-   `http://127.0.0.1:8081` (softphone) açın.
-2. Softphone'da **Microphone** veya **WAV file** modunu seçip **Start call**.
-3. Server önyüzünde grafik canlı dolar; çağrı bitince oturum kaydedilir ve
-   otomatik açılır.
-4. **Annotate** ile ground-truth bölgeleri işaretleyin (sürükle = oluştur,
+Sonra tarayıcıda **tek adres**: `http://127.0.0.1:8080`
+
+1. Sağ üstteki **🎤 Record** düğmesine basın, konuşun, **■ Stop** ile durdurun.
+   (Düğme, arka planda softphone istemcisine gerçek bir SIP çağrısı açtırır —
+   ses RTP ile server'a akar, dört VAD motoru canlı çalışır.)
+2. Grafik konuşurken canlı dolar; durdurunca kayıt oturum olarak saklanır ve
+   otomatik açılır: waveform + motor başına skor eğrisi ve segmentler.
+3. **Annotate** ile ground-truth bölgeleri işaretleyin (sürükle = oluştur,
    kenar = boyutlandır, gövde = taşı, çift tık = sil), **Save annotations**
    ile kaydedin — sağ panelde precision/recall/F1 tablosu belirir.
-5. Sağ paneldeki motor kartlarından motorları tek tıkla açıp kapatın,
+4. Sağ paneldeki motor kartlarından motorları tek tıkla açıp kapatın,
    parametreleri değiştirin (bir sonraki çağrıda geçerli olur).
+
+İki süreç vardır ama ikinci arayüze normalde ihtiyaç yoktur:
+`http://127.0.0.1:8081` (softphone'un kendi ekranı) yalnızca WAV dosyası
+modunu elle kullanmak isterseniz gereklidir. Süreçleri ayrı terminallerde
+başlatmak isterseniz: `make run-server` ve `make run-client`.
 
 ### Dosya ile tek seferlik çağrı (UI'sız)
 

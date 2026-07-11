@@ -1,4 +1,11 @@
-.PHONY: setup build-c models wavs test run-server run-client clean
+.PHONY: setup build-c models wavs test run run-server run-client clean
+
+# both processes in one terminal; Ctrl-C stops them together
+run:
+	@trap 'kill 0' INT TERM; \
+	uv run vad-server & \
+	uv run vad-client & \
+	wait
 
 setup: build-c
 	uv sync --group dev --extra client --extra ten || uv sync --group dev --extra client

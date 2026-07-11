@@ -16,3 +16,5 @@ class ServerConfig:
     rtp_port_min: int = 40000
     rtp_port_max: int = 40019
     data_dir: Path = field(default_factory=lambda: REPO_ROOT / "data" / "sessions")
+    # local softphone client HTTP API, used by the one-button record proxy
+    client_url: str = "http://127.0.0.1:8081"

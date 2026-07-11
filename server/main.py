@@ -19,6 +19,7 @@ from server.config import ServerConfig
 from server.engines_state import EngineManager
 from server.sessions.store import SessionStore
 from server.sip.uas import start_uas
+from server.softphone import SoftphoneProxy
 
 log = logging.getLogger("server")
 
@@ -30,6 +31,7 @@ class ServerState:
         self.store = SessionStore(config.data_dir)
         self.hub = Hub()
         self.call_manager = CallManager(config, self.store, self.engine_manager, self.hub)
+        self.softphone = SoftphoneProxy(config.client_url)
 
 
 def parse_args(argv=None) -> ServerConfig:
@@ -41,6 +43,7 @@ def parse_args(argv=None) -> ServerConfig:
     parser.add_argument("--rtp-port-min", type=int, default=defaults.rtp_port_min)
     parser.add_argument("--rtp-port-max", type=int, default=defaults.rtp_port_max)
     parser.add_argument("--data-dir", type=Path, default=defaults.data_dir)
+    parser.add_argument("--client-url", default=defaults.client_url)
     args = parser.parse_args(argv)
     return ServerConfig(
         host=args.host,
@@ -49,6 +52,7 @@ def parse_args(argv=None) -> ServerConfig:
         rtp_port_min=args.rtp_port_min,
         rtp_port_max=args.rtp_port_max,
         data_dir=args.data_dir,
+        client_url=args.client_url,
     )
 
 

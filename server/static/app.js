@@ -27,6 +27,9 @@ const els = {
   saveAnnoBtn: document.getElementById("saveAnnoBtn"),
   enginePanel: document.getElementById("enginePanel"),
   metrics: document.getElementById("metrics"),
+  recordBtn: document.getElementById("recordBtn"),
+  recHint: document.getElementById("recHint"),
+  recLevelFill: document.getElementById("recLevelFill"),
 };
 
 function colorOf(name) {
@@ -142,6 +145,91 @@ function connectWs() {
   ws.onmessage = (e) => handleMessage(JSON.parse(e.data));
   ws.onclose = () => setTimeout(connectWs, 1500);
 }
+
+/* ---------- one-button recorder (drives the softphone client) ---------- */
+
+const recorder = { running: false, state: "idle", busy: false };
+
+async function readErrorDetail(res) {
+  try {
+    const data = await res.json();
+    const detail = data.detail ?? data;
+    if (typeof detail === "string") return detail;
+    if (Array.isArray(detail)) return detail.map((d) => d.msg || JSON.stringify(d)).join("; ");
+    return JSON.stringify(detail);
+  } catch {
+    return `request failed (HTTP ${res.status})`;
+  }
+}
+
+function renderRecorder(status) {
+  const btn = els.recordBtn;
+  if (!recorder.running) {
+    btn.disabled = true;
+    btn.classList.remove("recording");
+    btn.innerHTML = "&#127908; Record";
+    setRecHint("softphone client is not running — start it with `make run-client`", false);
+    els.recLevelFill.style.width = "0";
+    return;
+  }
+  btn.disabled = recorder.busy;
+  if (recorder.state === "idle") {
+    btn.classList.remove("recording");
+    btn.innerHTML = "&#127908; Record";
+    if (status?.error) setRecHint(status.error, true);
+    else setRecHint("one click: speak into the mic, click again to stop — all engines run live", false);
+    els.recLevelFill.style.width = "0";
+  } else {
+    btn.classList.add("recording");
+    btn.innerHTML = "&#9632; Stop";
+    setRecHint("recording — speak now; Stop opens the results", false);
+    els.recLevelFill.style.width = Math.min(100, (status?.level || 0) * 300) + "%";
+  }
+}
+
+function setRecHint(text, isError) {
+  els.recHint.textContent = text;
+  els.recHint.classList.toggle("error", !!isError);
+}
+
+async function pollSoftphone() {
+  try {
+    const data = await (await fetch("/api/softphone")).json();
+    recorder.running = data.running;
+    recorder.state = data.status?.state || "idle";
+    renderRecorder(data.status);
+  } catch {
+    recorder.running = false;
+    renderRecorder(null);
+  }
+  setTimeout(pollSoftphone, recorder.state === "idle" ? 2000 : 300);
+}
+
+els.recordBtn.onclick = async () => {
+  if (recorder.busy) return;
+  recorder.busy = true;
+  els.recordBtn.disabled = true;
+  try {
+    if (recorder.state === "idle") {
+      setRecHint("starting the call…", false);
+      const res = await fetch("/api/softphone/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "mic" }),
+      });
+      if (!res.ok) setRecHint(await readErrorDetail(res), true);
+      else recorder.state = "active";
+    } else {
+      await fetch("/api/softphone/stop", { method: "POST" });
+      recorder.state = "idle";
+    }
+  } catch (err) {
+    setRecHint(`request failed: ${err.message || err}`, true);
+  } finally {
+    recorder.busy = false;
+    els.recordBtn.disabled = !recorder.running;
+  }
+};
 
 /* ---------- engine panel ---------- */
 
@@ -316,3 +404,4 @@ refreshSessions().then(async () => {
   if (first) openSession(first.dataset.id);
 });
 connectWs();
+pollSoftphone();
