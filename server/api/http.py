@@ -119,7 +119,12 @@ def build_app(state) -> FastAPI:
         try:
             # offline, CPU-bound; keep the event loop responsive
             session = await asyncio.to_thread(
-                run_reanalyze, state.store, state.engine_manager, session_id, payload.engines
+                run_reanalyze,
+                state.store,
+                state.engine_manager,
+                session_id,
+                payload.engines,
+                state.enhancer_manager,
             )
         except (KeyError, FileNotFoundError):
             raise HTTPException(404, f"no such session: {session_id}")

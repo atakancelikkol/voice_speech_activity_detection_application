@@ -70,15 +70,17 @@ class CallPipeline:
     def on_audio(self, pcm: np.ndarray) -> None:
         if self._finalized:
             return
-        if self.enhancer is not None:
-            # enhance first: waveform, engines and recording all see cleaned audio
-            pcm = self.enhancer.process(pcm, self._hint.update(pcm))
+        # the recording and the waveform are always RAW (so playback and the
+        # waveform are the true captured audio); only the engines see the
+        # enhanced audio when an enhancer is active. Re-analyze reproduces this
+        # from the raw recording, so live and offline results match.
         self.wav.append(pcm)
         new_peaks = self.binner.feed(pcm)
         self.peaks.extend(new_peaks)
         self._pending_peaks.extend(new_peaks)
+        vad_pcm = self.enhancer.process(pcm, self._hint.update(pcm)) if self.enhancer is not None else pcm
         for name, runner in self.runners.items():
-            scored = runner.feed(pcm)
+            scored = runner.feed(vad_pcm)
             self.scores[name].extend(scored)
             self._pending_scores[name].extend(scored)
         if self.hub and self._flush_task is None:

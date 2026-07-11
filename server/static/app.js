@@ -99,6 +99,7 @@ function renderSession(session, { preserveView = false } = {}) {
   setAnnotationEditing(false);
   renderMetrics();
   renderEnginePanel(); // a recording is open now: card buttons become "Re-analyze recording"
+  renderEnhancerPanel();
   refreshSessions();
 }
 
@@ -120,6 +121,7 @@ function startLiveView(sessionId) {
   els.metrics.innerHTML = "";
   els.reanalyzeBtn.style.display = "none"; // no offline re-run during a live call
   renderEnginePanel(); // live: card buttons revert to "Apply (next call)"
+  renderEnhancerPanel();
 }
 
 function handleMessage(msg) {
@@ -459,7 +461,8 @@ function renderEnhancerPanel() {
       card.appendChild(grid);
       const apply = document.createElement("button");
       apply.className = "apply";
-      apply.textContent = "Apply (next call)";
+      // with a recording open, applying re-runs it offline; otherwise next call
+      apply.textContent = hasRecordedSession() ? "Apply to recording" : "Apply (next call)";
       apply.onclick = () => {
         const params = {};
         for (const [name, input] of Object.entries(inputs))
@@ -481,6 +484,9 @@ async function putEnhancer(name, body) {
   if (res.ok) {
     state.enhancers = await res.json();
     renderEnhancerPanel();
+    // toggling/tuning the enhancer re-applies to the open recording offline,
+    // so raw vs enhanced can be compared on the same capture instantly
+    if (hasRecordedSession()) await reanalyzeAll();
   }
 }
 

@@ -41,6 +41,16 @@ class AudioEnhancer(ABC):
         pass
 
 
+def enhance_pcm(enhancer: "AudioEnhancer", pcm: np.ndarray, frame_samples: int = 160) -> np.ndarray:
+    """Run an enhancer over a whole 8 kHz buffer, frame by frame (the enhancer
+    is stateful). Used offline by re-analyze; the live pipeline enhances each
+    RTP chunk the same way. Returns a same-length enhanced copy."""
+    hint = SpeechHint(enhancer.sample_rate)
+    out = [enhancer.process(pcm[i : i + frame_samples], hint.update(pcm[i : i + frame_samples]))
+           for i in range(0, len(pcm), frame_samples)]
+    return np.concatenate(out) if out else pcm.copy()
+
+
 class SpeechHint:
     """Coarse energy-based speech flag to drive the enhancer's noise learning.
 

@@ -104,3 +104,38 @@ def test_reanalyze_preserves_annotations(seeded_store):
     store.write_annotations(session_id, {"speech_regions": [{"start_ms": 1000, "end_ms": 2000}]})
     reanalyze_session(store, manager, session_id, None)
     assert store.read_annotations(session_id)["speech_regions"] == [{"start_ms": 1000, "end_ms": 2000}]
+
+
+def test_reanalyze_applies_active_enhancer_offline(seeded_store):
+    from server.enhance.manager import EnhancerManager
+
+    store, session_id, manager = seeded_store
+    enh = EnhancerManager()
+    if not enh.infos["arf_enhance"].available:
+        pytest.skip("arf_enhance unavailable")
+
+    # no enhancer: session records an empty enhancer and a baseline result
+    base = reanalyze_session(store, manager, session_id, None, enh)
+    assert base["enhancer"] == {}
+    base_unimrcp = base["engines"]["unimrcp_vad"]["segments"]
+
+    # enable the enhancer and re-analyze the SAME raw recording
+    enh.configure("arf_enhance", enabled=True, params={"denoise": True, "leveler": True})
+    enhanced = reanalyze_session(store, manager, session_id, None, enh)
+    assert enhanced["enhancer"]["name"] == "arf_enhance"
+    assert enhanced["enhancer"]["denoise"] is True
+    # the raw recording on disk is untouched; only the analysis changed
+    from server.audio.wav_io import load_wav as _load
+
+    assert len(_load(store.audio_path(session_id), SOURCE_RATE)) > 0
+    # enhancing the audio must move at least one engine's result
+    changed = any(
+        enhanced["engines"][n]["segments"] != base["engines"][n]["segments"] for n in enhanced["engines"]
+    ) or enhanced["engines"]["unimrcp_vad"]["segments"] != base_unimrcp
+    assert changed, "enhancer had no effect on any engine"
+
+
+def test_reanalyze_without_enhancer_manager_clears_enhancer(seeded_store):
+    store, session_id, manager = seeded_store
+    session = reanalyze_session(store, manager, session_id, None, None)
+    assert session["enhancer"] == {}
