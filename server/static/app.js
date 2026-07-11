@@ -94,6 +94,7 @@ function renderSession(session, { preserveView = false } = {}) {
   els.reanalyzeBtn.style.display = "";
   setAnnotationEditing(false);
   renderMetrics();
+  renderEnginePanel(); // a recording is open now: card buttons become "Re-analyze recording"
   refreshSessions();
 }
 
@@ -114,6 +115,7 @@ function startLiveView(sessionId) {
   setAnnotationEditing(false);
   els.metrics.innerHTML = "";
   els.reanalyzeBtn.style.display = "none"; // no offline re-run during a live call
+  renderEnginePanel(); // live: card buttons revert to "Apply (next call)"
 }
 
 function handleMessage(msg) {
