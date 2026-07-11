@@ -116,7 +116,10 @@ export class Timeline {
   /* ---------- geometry ---------- */
 
   _plotWidth() {
-    return Math.max(50, this.canvas.clientWidth - LABEL_W - 8);
+    // use the parent's width like _render does: the canvas element itself can
+    // report clientWidth 0 depending on layout, which broke Fit (it sized the
+    // whole recording into a 50px fallback and zoomed way out)
+    return Math.max(50, this.canvas.parentElement.clientWidth - LABEL_W - 8);
   }
 
   _height() {
