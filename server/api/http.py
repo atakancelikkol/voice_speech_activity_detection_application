@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import secrets
+import shutil
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, File, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -127,6 +129,27 @@ def build_app(state) -> FastAPI:
     @app.post("/api/softphone/stop")
     async def softphone_stop():
         code, body = await state.softphone.stop()
+        if code != 200:
+            raise HTTPException(code, body.get("detail", "softphone error"))
+        return body
+
+    @app.post("/api/softphone/upload")
+    async def softphone_upload(file: UploadFile = File(...)):
+        # a WAV picked from the browser's file dialog: save it where the
+        # (same-machine) softphone client can read it, then place the call
+        name = Path(file.filename or "upload.wav").name
+        if not name.lower().endswith(".wav"):
+            raise HTTPException(422, "only .wav files are supported")
+        upload_dir = state.config.data_dir.parent / "uploads"
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        dest = upload_dir / f"{secrets.token_hex(4)}_{name}"
+
+        def _save():
+            with dest.open("wb") as out:
+                shutil.copyfileobj(file.file, out)
+
+        await asyncio.to_thread(_save)
+        code, body = await state.softphone.start("wav", str(dest))
         if code != 200:
             raise HTTPException(code, body.get("detail", "softphone error"))
         return body

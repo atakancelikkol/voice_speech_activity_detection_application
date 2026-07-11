@@ -1,4 +1,4 @@
-.PHONY: setup build-c models noise wavs test run stop status run-server run-client clean
+.PHONY: setup build-c models noise samples wavs test run stop status run-server run-client clean
 
 # the whole app in one command: the server starts the softphone client
 # itself, so you only ever open http://127.0.0.1:8080
@@ -32,6 +32,11 @@ models:
 # real ambient noise (MS-SNSD) for the noisy fixtures; optional
 noise:
 	./scripts/fetch_noise.sh
+
+# a library of noisy speech recordings under data/samples/ to try from the UI
+samples:
+	./scripts/fetch_noise.sh
+	uv run python scripts/make_sample_library.py
 
 wavs:
 	uv run python scripts/make_test_wavs.py

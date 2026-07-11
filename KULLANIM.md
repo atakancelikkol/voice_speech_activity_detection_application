@@ -26,7 +26,22 @@ Burada her şeyi yaparsınız. Sağ üstteki iki düğme:
 | Düğme | Ne yapar |
 |---|---|
 | 🎤 **Record** | Mikrofondan kaydeder. Basın → konuşun → **■ Stop**. Kayıt boyunca 4 VAD motoru canlı çalışır; durdurunca sonuç otomatik açılır. |
-| 📁 **WAV file…** | Bu makinedeki bir ses dosyasını analiz eder (yol sorar, örn. `tests/fixtures/noisy_snr5.wav`). Kayıt yapmadan denemek için. |
+| 📁 **WAV file…** | **Finder açılır**, bir ses dosyası seçersiniz; dosya SIP yolundan geçirilip analiz edilir. Kayıt yapmadan hazır bir ses denemek için. |
+
+### Hazır gürültülü örnekler
+
+`make samples` ile 12 hazır gürültülü kayıt üretilir (gerçek arka plan sesleri
++ konuşma, farklı SNR'lerde). **WAV file…** düğmesiyle açılan Finder'da şu
+klasöre gidin:
+
+```
+data/samples/
+```
+
+Dosya adları içeriği anlatır, örn. `speech1_babble_5dB.wav` (5 dB SNR, ağır
+babble), `speech3_airconditioner_18dB.wav` (hafif klima gürültüsü). Bu
+örneklerde sabit-eşikli enerji motoru (unimrcp) gürültüyü konuşma sanarken
+nöral motorlar (silero/ten) daha temiz ayırır — grafikte doğrudan görürsünüz.
 
 Sonuç grafiğinde (zaman ekseni):
 - **waveform** — ham dalga formu

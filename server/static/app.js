@@ -30,6 +30,7 @@ const els = {
   metrics: document.getElementById("metrics"),
   recordBtn: document.getElementById("recordBtn"),
   wavBtn: document.getElementById("wavBtn"),
+  wavFileInput: document.getElementById("wavFileInput"),
   recHint: document.getElementById("recHint"),
   recLevelFill: document.getElementById("recLevelFill"),
 };
@@ -249,23 +250,27 @@ els.recordBtn.onclick = async () => {
   }
 };
 
-els.wavBtn.onclick = async () => {
+els.wavBtn.onclick = () => {
+  // open the OS file dialog (Finder); the actual work happens on change
   if (recorder.busy || recorder.state !== "idle") return;
-  const path = prompt("Path to a WAV file on this machine:", "tests/fixtures/speech.wav");
-  if (!path) return;
+  els.wavFileInput.click();
+};
+
+els.wavFileInput.onchange = async () => {
+  const file = els.wavFileInput.files[0];
+  els.wavFileInput.value = ""; // let the same file be picked again later
+  if (!file || recorder.busy || recorder.state !== "idle") return;
   recorder.busy = true;
   els.wavBtn.disabled = true;
   try {
-    setRecHint("streaming the file through the SIP path…", false);
-    const res = await fetch("/api/softphone/start", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mode: "wav", wav_path: path }),
-    });
+    setRecHint(`uploading ${file.name}…`, false);
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch("/api/softphone/upload", { method: "POST", body: fd });
     if (!res.ok) setRecHint(await readErrorDetail(res), true);
     else recorder.state = "active"; // the file plays out, then the call ends on its own
   } catch (err) {
-    setRecHint(`request failed: ${err.message || err}`, true);
+    setRecHint(`upload failed: ${err.message || err}`, true);
   } finally {
     recorder.busy = false;
   }

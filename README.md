@@ -53,7 +53,9 @@ Sonra tarayıcıda **tek adres**: `http://127.0.0.1:8080`
 1. Sağ üstteki **🎤 Record** düğmesine basın, konuşun, **■ Stop** ile durdurun.
    (Düğme, arka planda softphone istemcisine gerçek bir SIP çağrısı açtırır —
    ses RTP ile server'a akar, dört VAD motoru canlı çalışır.) Kayıt yerine bir
-   ses dosyası denemek için **📁 WAV file…** düğmesini kullanın.
+   ses dosyası denemek için **📁 WAV file…** düğmesiyle Finder'dan bir WAV
+   seçin. Hazır gürültülü örnekler için önce `make samples` çalıştırın
+   (`data/samples/` altına 12 gürültülü kayıt üretir).
 2. Grafik konuşurken canlı dolar; durdurunca kayıt oturum olarak saklanır ve
    otomatik açılır: waveform + motor başına skor eğrisi ve segmentler.
 3. Sağ paneldeki motor kartlarından motorları açıp kapatın ve parametreleri
