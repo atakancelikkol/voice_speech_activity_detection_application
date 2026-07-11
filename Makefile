@@ -1,11 +1,20 @@
-.PHONY: setup build-c models wavs test run run-server run-client clean
+.PHONY: setup build-c models wavs test run stop status run-server run-client clean
 
-# both processes in one terminal; Ctrl-C stops them together
-run:
+# both processes in one terminal; kills any previous instances first,
+# Ctrl-C stops them together
+run: stop
 	@trap 'kill 0' INT TERM; \
 	uv run vad-server & \
 	uv run vad-client & \
 	wait
+
+# stop whatever holds the app's ports (server web+SIP, client web)
+stop:
+	-@lsof -t -i tcp:8080 -i tcp:8081 -i udp:5060 2>/dev/null | sort -u | xargs kill 2>/dev/null; sleep 1; true
+	@echo "stopped (ports 8080/8081/5060 freed)"
+
+status:
+	@lsof -i tcp:8080 -i tcp:8081 -i udp:5060 2>/dev/null | grep -v '^COMMAND' || echo "nothing running"
 
 setup: build-c
 	uv sync --group dev --extra client --extra ten || uv sync --group dev --extra client

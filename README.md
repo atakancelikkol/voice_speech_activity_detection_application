@@ -43,8 +43,13 @@ make test      # birim testleri
 ## Kullanım
 
 ```sh
-make run    # server + softphone istemciyi birlikte başlatır (Ctrl-C ikisini de durdurur)
+make run     # önce eski süreçleri kapatır, sonra server + istemciyi birlikte başlatır
+             # (Ctrl-C ikisini de durdurur)
+make stop    # 8080/8081/5060 portlarını tutan ne varsa kapatır
+make status  # neyin çalıştığını gösterir
 ```
+
+Yeniden başlatmak için tek komut yeterlidir: `make run` (eskiyi kendisi kapatır).
 
 Sonra tarayıcıda **tek adres**: `http://127.0.0.1:8080`
 
