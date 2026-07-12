@@ -120,6 +120,12 @@ class CallController:
         log.info("call ended")
 
     async def _teardown(self) -> None:
+        # a failed start (e.g. mic open error) lands here without going through
+        # stop_call, so release the capture too or it keeps holding the device
+        if self._capture is not None:
+            with contextlib.suppress(Exception):
+                self._capture.stop()
+            self._capture = None
         if self._uac is not None:
             self._uac.close()
             self._uac = None

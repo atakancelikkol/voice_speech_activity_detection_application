@@ -7,6 +7,8 @@ pacing clock in mic mode.
 
 from __future__ import annotations
 
+import contextlib
+import time
 from typing import Callable
 
 import numpy as np
@@ -30,15 +32,42 @@ class MicCapture:
     def start(self) -> None:
         import sounddevice as sd  # imported lazily: optional dependency
 
-        self._stream = sd.InputStream(
-            device=self.device,
-            channels=1,
-            dtype="int16",
-            callback=self._callback,
-        )
-        rate = int(self._stream.samplerate)
+        stream = self._open_stream(sd)
+        rate = int(stream.samplerate)
         self._resampler = None if rate == 8000 else soxr.ResampleStream(rate, 8000, 1, dtype="int16")
-        self._stream.start()
+        try:
+            stream.start()
+        except sd.PortAudioError:  # never leave a half-open stream holding the device
+            with contextlib.suppress(Exception):
+                stream.close()
+            raise
+        self._stream = stream
+
+    def _open_stream(self, sd):
+        """Open the input device, tolerating the transient CoreAudio
+        paInternalError (PaErrorCode -9986) macOS raises the first time — often
+        while the mic-permission prompt is still resolving, or when a prior
+        half-open stream is still being released. Retry a few times (closing
+        each failed attempt so it can never orphan the device and lock out the
+        next try), then fail with actionable guidance instead of the raw code."""
+        last: Exception | None = None
+        for _ in range(3):
+            try:
+                return sd.InputStream(
+                    device=self.device,
+                    channels=1,
+                    dtype="int16",
+                    callback=self._callback,
+                )
+            except sd.PortAudioError as exc:
+                last = exc
+                time.sleep(0.4)
+        raise RuntimeError(
+            f"could not open the microphone ({last}). On macOS this usually means the "
+            "terminal has no microphone access — grant it in System Settings > Privacy "
+            "& Security > Microphone, then fully quit and reopen the terminal. Also make "
+            "sure the mic is not held by another app (Zoom/Meet/Photo Booth)."
+        ) from last
 
     def stop(self) -> None:
         if self._stream is not None:
