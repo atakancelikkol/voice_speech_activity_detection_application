@@ -99,9 +99,12 @@ def build_app(state) -> FastAPI:
 
     @app.get("/api/sessions/{session_id}/enhanced.wav")
     def get_enhanced_audio(session_id: str):
-        # the raw recording run through the currently active enhancer, so the
-        # UI can PLAY the enhanced audio (its effect is mostly audible). Falls
-        # back to the raw audio when no enhancer is active.
+        # The raw recording run through the currently active enhancer: this is
+        # the audio UniMRCP would stream to the recognizer (STT), so the UI can
+        # PLAY it to hear the enhancer's effect. It is decoupled from the VAD
+        # engines (they always score the raw audio), so it never changes any
+        # engine's segments. Falls back to the raw audio when no enhancer is
+        # active.
         from fastapi import Response
 
         from server.audio.wav_io import load_wav, wav_bytes
@@ -150,7 +153,6 @@ def build_app(state) -> FastAPI:
                 state.engine_manager,
                 session_id,
                 payload.engines,
-                state.enhancer_manager,
             )
         except (KeyError, FileNotFoundError):
             raise HTTPException(404, f"no such session: {session_id}")

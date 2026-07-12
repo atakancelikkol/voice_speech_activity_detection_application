@@ -106,36 +106,22 @@ def test_reanalyze_preserves_annotations(seeded_store):
     assert store.read_annotations(session_id)["speech_regions"] == [{"start_ms": 1000, "end_ms": 2000}]
 
 
-def test_reanalyze_applies_active_enhancer_offline(seeded_store):
-    from server.enhance.manager import EnhancerManager
-
+def test_reanalyze_scores_the_raw_recording(seeded_store):
+    """UniMRCP-faithful: engines analyze the RAW recording, decoupled from the
+    enhancer (which only feeds the /enhanced.wav preview). Re-analysis therefore
+    reproduces a direct raw analyze_pcm and the session carries no enhancer
+    field — enabling an enhancer can never flatter a VAD's result here."""
     store, session_id, manager = seeded_store
-    enh = EnhancerManager()
-    if not enh.infos["arf_enhance"].available:
-        pytest.skip("arf_enhance unavailable")
+    if not manager.infos["unimrcp_vad"].available:
+        pytest.skip("unimrcp_vad unavailable")
 
-    # no enhancer: session records an empty enhancer and a baseline result
-    base = reanalyze_session(store, manager, session_id, None, enh)
-    assert base["enhancer"] == {}
-    base_unimrcp = base["engines"]["unimrcp_vad"]["segments"]
+    pcm = load_wav(store.audio_path(session_id), SOURCE_RATE)
+    engine = manager.instantiate("unimrcp_vad")
+    try:
+        raw = analyze_pcm(engine, pcm, manager.config_of("unimrcp_vad"))
+    finally:
+        engine.close()
 
-    # enable the enhancer and re-analyze the SAME raw recording
-    enh.configure("arf_enhance", enabled=True, params={"denoise": True, "leveler": True})
-    enhanced = reanalyze_session(store, manager, session_id, None, enh)
-    assert enhanced["enhancer"]["name"] == "arf_enhance"
-    assert enhanced["enhancer"]["denoise"] is True
-    # the raw recording on disk is untouched; only the analysis changed
-    from server.audio.wav_io import load_wav as _load
-
-    assert len(_load(store.audio_path(session_id), SOURCE_RATE)) > 0
-    # enhancing the audio must move at least one engine's result
-    changed = any(
-        enhanced["engines"][n]["segments"] != base["engines"][n]["segments"] for n in enhanced["engines"]
-    ) or enhanced["engines"]["unimrcp_vad"]["segments"] != base_unimrcp
-    assert changed, "enhancer had no effect on any engine"
-
-
-def test_reanalyze_without_enhancer_manager_clears_enhancer(seeded_store):
-    store, session_id, manager = seeded_store
-    session = reanalyze_session(store, manager, session_id, None, None)
-    assert session["enhancer"] == {}
+    updated = reanalyze_session(store, manager, session_id, ["unimrcp_vad"])
+    assert updated["engines"]["unimrcp_vad"]["segments"] == raw["segments"]
+    assert "enhancer" not in updated  # the enhancer no longer touches the session

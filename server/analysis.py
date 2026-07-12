@@ -44,21 +44,21 @@ def analyze_pcm(engine: VadEngine, pcm: np.ndarray, config: dict | None = None) 
 
 
 def reanalyze_session(
-    store, engine_manager, session_id: str, engine_names: list[str] | None, enhancer_manager=None
+    store, engine_manager, session_id: str, engine_names: list[str] | None
 ) -> dict:
     """Re-run engines over an existing (raw) recording with the engine
     manager's current params, overwriting only those engines' results.
 
-    If enhancer_manager has an active enhancer, the raw audio is enhanced
-    offline first and every engine sees the cleaned audio — the same as a live
-    call with that enhancer on. The recording on disk stays raw, so toggling
-    the enhancer and re-analyzing compares raw vs enhanced on the same capture.
-    Ground-truth annotations live in a separate file and are untouched.
+    Engines always analyze the RAW recording — same as UniMRCP, where the VAD
+    runs on the untouched audio and the enhancer only cleans what is streamed to
+    the recognizer (STT), never the detector's input. To hear the enhanced audio
+    the recognizer would receive, use the /enhanced.wav endpoint; it does not
+    change any engine's segments. Ground-truth annotations live in a separate
+    file and are untouched.
 
     engine_names=None means "every currently enabled engine".
     """
     from server.audio.wav_io import load_wav
-    from server.enhance.base import enhance_pcm
 
     session = store.read_session(session_id)
     names = engine_names if engine_names is not None else list(engine_manager.active_configs())
@@ -70,18 +70,6 @@ def reanalyze_session(
         raise ValueError(f"engine(s) unavailable: {', '.join(unavailable)}")
 
     pcm = load_wav(store.audio_path(session_id), SOURCE_RATE)
-
-    # apply the active enhancer offline (raw recording is left untouched)
-    enh_name = enhancer_manager.active_name() if enhancer_manager is not None else None
-    if enh_name is not None:
-        enhancer = enhancer_manager.instantiate_active(SOURCE_RATE)
-        try:
-            pcm = enhance_pcm(enhancer, pcm)
-        finally:
-            enhancer.close()
-        session["enhancer"] = {"name": enh_name, **enhancer_manager.config_of(enh_name)}
-    else:
-        session["enhancer"] = {}
 
     session.setdefault("engines", {})
     for name in names:

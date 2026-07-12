@@ -34,9 +34,7 @@ class ServerState:
         self.enhancer_manager = EnhancerManager()
         self.store = SessionStore(config.data_dir)
         self.hub = Hub()
-        self.call_manager = CallManager(
-            config, self.store, self.engine_manager, self.hub, self.enhancer_manager
-        )
+        self.call_manager = CallManager(config, self.store, self.engine_manager, self.hub)
         self.softphone = SoftphoneProxy(config.client_url)
 
 

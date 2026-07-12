@@ -1,5 +1,7 @@
-"""Audio enhancer plugin interface — a pre-processing stage that cleans the
-8/16 kHz mono stream before it reaches the VAD engines and the recording.
+"""Audio enhancer plugin interface — a stage that cleans the 8/16 kHz mono
+stream sent to the recognizer (STT), mirroring UniMRCP. It is decoupled from
+the VAD: the engines always score the raw audio, and the enhancer only feeds
+the /enhanced.wav "what the recognizer would hear" preview.
 
 Same shape as the VAD plugin interface (ParamSpec-driven params, probe,
 registry) so the UI can render an enhancer the same way it renders an engine.
@@ -43,8 +45,8 @@ class AudioEnhancer(ABC):
 
 def enhance_pcm(enhancer: "AudioEnhancer", pcm: np.ndarray, frame_samples: int = 160) -> np.ndarray:
     """Run an enhancer over a whole 8 kHz buffer, frame by frame (the enhancer
-    is stateful). Used offline by re-analyze; the live pipeline enhances each
-    RTP chunk the same way. Returns a same-length enhanced copy."""
+    is stateful). Used by the /enhanced.wav preview to render the audio the
+    recognizer would receive. Returns a same-length enhanced copy."""
     hint = SpeechHint(enhancer.sample_rate)
     out = [enhancer.process(pcm[i : i + frame_samples], hint.update(pcm[i : i + frame_samples]))
            for i in range(0, len(pcm), frame_samples)]
@@ -54,9 +56,10 @@ def enhance_pcm(enhancer: "AudioEnhancer", pcm: np.ndarray, frame_samples: int =
 class SpeechHint:
     """Coarse energy-based speech flag to drive the enhancer's noise learning.
 
-    The enhancer runs before the real VAD engines, so it needs its own hint.
-    A leaky noise-floor tracker with hysteresis: a frame counts as speech when
-    its RMS sits well above the tracked floor.
+    The enhancer is decoupled from the VAD engines, so it has no detector to
+    gate its noise/AGC adaptation and needs its own hint. A leaky noise-floor
+    tracker with hysteresis: a frame counts as speech when its RMS sits well
+    above the tracked floor.
     """
 
     def __init__(self, sample_rate: int, margin_db: float = 8.0):
