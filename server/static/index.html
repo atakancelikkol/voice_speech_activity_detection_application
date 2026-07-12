@@ -20,6 +20,10 @@
 <div id="layout">
   <aside>
     <h2>Sessions</h2>
+    <div class="sessionFilter">
+      <input type="date" id="sessionDate" title="Show only recordings from this day">
+      <button id="sessionDateClear" title="Show recordings from all days">All</button>
+    </div>
     <ul id="sessionList"></ul>
   </aside>
   <main>
@@ -36,6 +40,7 @@
   </main>
   <aside class="right">
     <h2>Audio Enhancer</h2>
+    <p class="panelNote">Cleans the audio sent to the recognizer (STT), like UniMRCP. Does not affect the VAD engines — use “Apply &amp; play enhanced” to hear it.</p>
     <div id="enhancerPanel"></div>
     <h2>Engines</h2>
     <div id="enginePanel"></div>

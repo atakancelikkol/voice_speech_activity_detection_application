@@ -39,8 +39,23 @@ aside {
 }
 aside.right { border-right: 0; border-left: 1px solid #2a2f38; width: 260px; }
 aside h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #9aa; margin: 6px 4px; }
+.panelNote { color: #9aa; font-size: 11px; line-height: 1.4; margin: 0 4px 8px; }
+
+.sessionFilter { display: flex; gap: 6px; margin: 0 4px 8px; }
+.sessionFilter input[type="date"] {
+  flex: 1; min-width: 0; background: #14161a; color: #e8e8e8;
+  border: 1px solid #2a2f38; border-radius: 6px; padding: 3px 6px; font-size: 12px;
+  color-scheme: dark;
+}
+.sessionFilter button {
+  background: #242933; color: #9aa; border: 1px solid #2a2f38;
+  border-radius: 6px; padding: 3px 8px; font-size: 12px; cursor: pointer;
+}
+.sessionFilter button:hover { background: #2b3442; color: #e8e8e8; }
 
 #sessionList { list-style: none; margin: 0; padding: 0; }
+#sessionList li.empty { color: #9aa; font-size: 12px; cursor: default; padding: 8px 10px; }
+#sessionList li.empty:hover { background: none; }
 #sessionList li {
   padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 13px; margin-bottom: 4px;
 }

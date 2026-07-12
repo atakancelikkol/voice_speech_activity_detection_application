@@ -13,6 +13,8 @@ const state = {
   currentSession: null, // session id being viewed
   liveSession: null,
   annotationsDirty: false,
+  allSessions: [], // every session from the server, unfiltered
+  sessionFilterDate: null, // "YYYY-MM-DD" day filter, or null for all days
 };
 
 const timeline = new Timeline(document.getElementById("timeline"));
@@ -20,6 +22,8 @@ window.vadTimeline = timeline; // console/debug access
 const audio = document.getElementById("player");
 const els = {
   sessionList: document.getElementById("sessionList"),
+  sessionDate: document.getElementById("sessionDate"),
+  sessionDateClear: document.getElementById("sessionDateClear"),
   liveBadge: document.getElementById("liveBadge"),
   title: document.getElementById("sessionTitle"),
   followBtn: document.getElementById("followBtn"),
@@ -47,8 +51,30 @@ function colorOf(name) {
 /* ---------- sessions ---------- */
 
 async function refreshSessions() {
-  const sessions = await (await fetch("/api/sessions")).json();
+  state.allSessions = await (await fetch("/api/sessions")).json();
+  renderSessionList();
+}
+
+// Local YYYY-MM-DD for a session, matching the <input type="date"> value format
+// so the calendar day filter can compare against it directly.
+function sessionDay(s) {
+  if (!s.started_at) return null;
+  const d = new Date(s.started_at * 1000);
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+function renderSessionList() {
+  const day = state.sessionFilterDate;
+  const sessions = (state.allSessions || []).filter((s) => !day || sessionDay(s) === day);
   els.sessionList.innerHTML = "";
+  if (!sessions.length) {
+    const li = document.createElement("li");
+    li.className = "empty";
+    li.textContent = day ? "no recordings on this day" : "no recordings yet";
+    els.sessionList.appendChild(li);
+    return;
+  }
   for (const s of sessions) {
     const li = document.createElement("li");
     const when = s.started_at ? new Date(s.started_at * 1000).toLocaleString() : s.id;
@@ -71,6 +97,7 @@ async function openSession(id) {
 // re-analyze so tuning doesn't reset the graph the user is inspecting).
 function renderSession(session, { preserveView = false } = {}) {
   const view = { ...timeline.view };
+  const sessionChanged = state.currentSession !== session.id;
   state.currentSession = session.id;
   state.annotationsDirty = false;
   const lanes = Object.entries(session.engines).map(([name, r]) => ({
@@ -91,9 +118,16 @@ function renderSession(session, { preserveView = false } = {}) {
     timeline.view = view;
     timeline.requestRender();
   }
-  const enhanced = session.enhancer && session.enhancer.name ? ` · enhanced: ${session.enhancer.name}` : "";
-  els.title.textContent = `${session.id} (${(session.duration_ms / 1000).toFixed(1)}s)${enhanced}`;
-  audio.src = `/api/sessions/${session.id}/audio.wav`;
+  els.title.textContent = `${session.id} (${(session.duration_ms / 1000).toFixed(1)}s)`;
+  // Only (re)load the player when switching to a different recording. Reassigning
+  // audio.src mid-playback aborts the current play() with a console error and can
+  // leave the player stuck on the previous clip's position; and on re-analyze of
+  // the SAME session (preserveView) we must not interrupt playback at all.
+  if (sessionChanged) {
+    audio.pause();
+    audio.src = `/api/sessions/${session.id}/audio.wav`;
+    audio.load();
+  }
   audio.style.display = "";
   els.reanalyzeBtn.style.display = "";
   setAnnotationEditing(false);
@@ -407,7 +441,7 @@ async function putEngine(name, body) {
   }
 }
 
-/* ---------- enhancer panel (audio pre-processing) ---------- */
+/* ---------- enhancer panel (recognizer/STT audio preview) ---------- */
 
 const ENHANCER_COLOR = "#4dd4c4";
 
@@ -461,10 +495,10 @@ function renderEnhancerPanel() {
       card.appendChild(grid);
       const apply = document.createElement("button");
       apply.className = "apply";
-      // with a recording open, applying re-runs it offline AND plays the
-      // enhanced audio (the enhancer's effect is mostly audible); otherwise
-      // the params just wait for the next call
-      apply.textContent = hasRecordedSession() ? "Apply & play enhanced" : "Apply (next call)";
+      // Applying stores the params and, with a recording open, plays the
+      // enhanced audio (what the recognizer/STT would hear). The enhancer does
+      // not feed the VAD engines, so this never re-runs detection.
+      apply.textContent = hasRecordedSession() ? "Apply & play enhanced" : "Apply";
       apply.onclick = async () => {
         const params = {};
         for (const [name, input] of Object.entries(inputs))
@@ -487,14 +521,15 @@ async function putEnhancer(name, body) {
   if (res.ok) {
     state.enhancers = await res.json();
     renderEnhancerPanel();
-    // toggling/tuning the enhancer re-applies to the open recording offline,
-    // so raw vs enhanced can be compared on the same capture instantly
-    if (hasRecordedSession()) await reanalyzeAll();
+    // The enhancer feeds the recognizer (STT) preview only, not the VAD
+    // engines, so changing it does NOT re-run detection. Use "Apply & play
+    // enhanced" to hear its effect on the open recording.
   }
 }
 
-// Play the open recording through the active enhancer (raw if none active).
-// The enhancer's effect is mostly audible, so this is the real feedback.
+// Play the open recording through the active enhancer (raw if none active):
+// the audio the recognizer (STT) would receive. This is the enhancer's only
+// effect — it does not change the VAD engines' segments.
 function playEnhanced() {
   if (!hasRecordedSession()) return;
   const active = state.enhancers.some((e) => e.enabled);
@@ -595,10 +630,21 @@ els.annotateBtn.onclick = () => setAnnotationEditing(!timeline.annotationEditing
 els.saveAnnoBtn.onclick = saveAnnotations;
 els.reanalyzeBtn.onclick = reanalyzeAll;
 
+// calendar day filter for the session list (filters the already-fetched list)
+els.sessionDate.onchange = () => {
+  state.sessionFilterDate = els.sessionDate.value || null;
+  renderSessionList();
+};
+els.sessionDateClear.onclick = () => {
+  els.sessionDate.value = "";
+  state.sessionFilterDate = null;
+  renderSessionList();
+};
+
 refreshEngines();
 refreshEnhancers();
 refreshSessions().then(async () => {
-  const first = els.sessionList.querySelector("li");
+  const first = els.sessionList.querySelector("li[data-id]");
   if (first) openSession(first.dataset.id);
 });
 connectWs();
