@@ -97,6 +97,32 @@ def build_app(state) -> FastAPI:
             raise HTTPException(404, "no audio recorded")
         return FileResponse(path, media_type="audio/wav")
 
+    @app.get("/api/sessions/{session_id}/enhanced.wav")
+    def get_enhanced_audio(session_id: str):
+        # the raw recording run through the currently active enhancer, so the
+        # UI can PLAY the enhanced audio (its effect is mostly audible). Falls
+        # back to the raw audio when no enhancer is active.
+        from fastapi import Response
+
+        from server.audio.wav_io import load_wav, wav_bytes
+        from server.enhance.base import enhance_pcm
+
+        try:
+            path = state.store.audio_path(session_id)
+        except (KeyError, ValueError):
+            raise HTTPException(404, f"no such session: {session_id}")
+        if not path.exists():
+            raise HTTPException(404, "no audio recorded")
+        pcm = load_wav(path, 8000)
+        name = state.enhancer_manager.active_name()
+        if name is not None:
+            enhancer = state.enhancer_manager.instantiate_active(8000)
+            try:
+                pcm = enhance_pcm(enhancer, pcm)
+            finally:
+                enhancer.close()
+        return Response(wav_bytes(pcm, 8000), media_type="audio/wav")
+
     @app.get("/api/sessions/{session_id}/annotations")
     def get_annotations(session_id: str):
         try:

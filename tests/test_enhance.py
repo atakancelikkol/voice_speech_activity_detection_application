@@ -66,6 +66,37 @@ class TestArfEnhance:
         assert noise_rms(on) < noise_rms(off) * 0.95
 
 
+class TestEnhancedWavEndpoint:
+    def _client(self, tmp_path):
+        import shutil
+        from types import SimpleNamespace
+
+        from fastapi.testclient import TestClient
+
+        from server.api.http import build_app
+        from server.sessions.store import SessionStore
+
+        store = SessionStore(tmp_path / "sessions")
+        sid, sdir = store.new_session_dir("call-x")
+        shutil.copy(FIXTURES / "speech.wav", sdir / "audio.wav")
+        store.write_session(sid, {"id": sid, "engines": {}})
+        enh = EnhancerManager()
+        state = SimpleNamespace(store=store, enhancer_manager=enh)
+        return TestClient(build_app(state)), sid, enh
+
+    def test_returns_raw_when_no_enhancer_then_enhanced_when_active(self, tmp_path):
+        tc, sid, enh = self._client(tmp_path)
+        if not enh.infos["arf_enhance"].available:
+            pytest.skip("arf_enhance unavailable")
+        raw = tc.get(f"/api/sessions/{sid}/enhanced.wav")
+        assert raw.status_code == 200 and raw.headers["content-type"] == "audio/wav"
+        raw_bytes = raw.content
+
+        enh.configure("arf_enhance", enabled=True, params={"denoise": True, "leveler": True})
+        enhanced = tc.get(f"/api/sessions/{sid}/enhanced.wav").content
+        assert enhanced != raw_bytes  # the enhancer audibly changed the audio
+
+
 class TestEnhancerManager:
     def test_off_by_default(self):
         m = EnhancerManager()

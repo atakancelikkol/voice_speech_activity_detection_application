@@ -40,3 +40,16 @@ def save_wav(path: str | Path, samples: np.ndarray, rate: int = 8000) -> None:
         wf.setsampwidth(2)
         wf.setframerate(rate)
         wf.writeframes(np.asarray(samples, dtype="<i2").tobytes())
+
+
+def wav_bytes(samples: np.ndarray, rate: int = 8000) -> bytes:
+    """Serialize mono int16 PCM to an in-memory WAV (for streaming responses)."""
+    import io
+
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(rate)
+        wf.writeframes(np.asarray(samples, dtype="<i2").tobytes())
+    return buf.getvalue()

@@ -461,13 +461,16 @@ function renderEnhancerPanel() {
       card.appendChild(grid);
       const apply = document.createElement("button");
       apply.className = "apply";
-      // with a recording open, applying re-runs it offline; otherwise next call
-      apply.textContent = hasRecordedSession() ? "Apply to recording" : "Apply (next call)";
-      apply.onclick = () => {
+      // with a recording open, applying re-runs it offline AND plays the
+      // enhanced audio (the enhancer's effect is mostly audible); otherwise
+      // the params just wait for the next call
+      apply.textContent = hasRecordedSession() ? "Apply & play enhanced" : "Apply (next call)";
+      apply.onclick = async () => {
         const params = {};
         for (const [name, input] of Object.entries(inputs))
           params[name] = input.type === "checkbox" ? input.checked : Number(input.value);
-        putEnhancer(enh.name, { params });
+        await putEnhancer(enh.name, { params });
+        playEnhanced();
       };
       card.appendChild(apply);
     }
@@ -488,6 +491,17 @@ async function putEnhancer(name, body) {
     // so raw vs enhanced can be compared on the same capture instantly
     if (hasRecordedSession()) await reanalyzeAll();
   }
+}
+
+// Play the open recording through the active enhancer (raw if none active).
+// The enhancer's effect is mostly audible, so this is the real feedback.
+function playEnhanced() {
+  if (!hasRecordedSession()) return;
+  const active = state.enhancers.some((e) => e.enabled);
+  audio.src = active
+    ? `/api/sessions/${state.currentSession}/enhanced.wav?t=${Date.now()}`
+    : `/api/sessions/${state.currentSession}/audio.wav`;
+  audio.play().catch(() => {});
 }
 
 /* ---------- annotations + metrics ---------- */
