@@ -11,15 +11,15 @@ soft-knee. Works at 8 kHz and 16 kHz (arf_audio_enhance_init takes the rate).
 from __future__ import annotations
 
 import ctypes
-from pathlib import Path
 from typing import Any
 
 import numpy as np
 
 from server.enhance.base import AudioEnhancer
+from server.native import lib_path
 from server.vad.base import ParamSpec
 
-LIB_PATH = Path(__file__).resolve().parents[3] / "third_party" / "arf_enhance" / "libarfenhance.dylib"
+LIB_PATH = lib_path("arf_enhance", "libarfenhance")
 
 
 def _load_lib() -> ctypes.CDLL:

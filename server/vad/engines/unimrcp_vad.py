@@ -8,14 +8,14 @@ from __future__ import annotations
 
 import ctypes
 import math
-from pathlib import Path
 from typing import Any
 
 import numpy as np
 
+from server.native import lib_path
 from server.vad.base import AudioFormat, EventKind, FrameScore, ParamSpec, VadEngine, VadEvent
 
-LIB_PATH = Path(__file__).resolve().parents[3] / "third_party" / "unimrcp_vad" / "libuvad.dylib"
+LIB_PATH = lib_path("unimrcp_vad", "libuvad")
 
 UVAD_EVENT_NONE = 0
 UVAD_EVENT_ACTIVITY = 1

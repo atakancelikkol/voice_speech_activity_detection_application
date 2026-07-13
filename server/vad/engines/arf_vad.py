@@ -20,16 +20,15 @@ onset/offset; with use_fvad off the detector runs energy/SNR-only.
 from __future__ import annotations
 
 import ctypes
-from pathlib import Path
 from typing import Any
 
 import numpy as np
 
+from server.native import lib_path
 from server.vad.base import AudioFormat, EventKind, FrameScore, ParamSpec, VadEngine, VadEvent
 
-THIRD_PARTY = Path(__file__).resolve().parents[3] / "third_party"
-LIB_PATH = THIRD_PARTY / "arf_vad" / "libarfvad.dylib"
-FVAD_LIB_PATH = THIRD_PARTY / "libfvad" / "libfvad.dylib"
+LIB_PATH = lib_path("arf_vad", "libarfvad")
+FVAD_LIB_PATH = lib_path("libfvad", "libfvad")
 
 ARF_VAD_EVENT_NONE = 0
 ARF_VAD_EVENT_ACTIVITY = 1

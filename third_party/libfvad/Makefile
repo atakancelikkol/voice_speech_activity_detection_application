@@ -1,6 +1,16 @@
-CC ?= clang
+CC ?= cc
 CFLAGS ?= -O2 -Wall -Wextra -fPIC
 CPPFLAGS = -Iinclude -Isrc
+
+# macOS builds a .dylib; Linux (containers) builds a .so.
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+  LIBEXT := dylib
+  SHARED := -dynamiclib -install_name @rpath/libfvad.dylib
+else
+  LIBEXT := so
+  SHARED := -shared
+endif
 
 SRCS = src/fvad.c \
        src/signal_processing/division_operations.c \
@@ -15,9 +25,9 @@ SRCS = src/fvad.c \
        src/vad/vad_gmm.c \
        src/vad/vad_sp.c
 
-libfvad.dylib: $(SRCS) include/fvad.h
-	$(CC) $(CFLAGS) $(CPPFLAGS) -dynamiclib -install_name @rpath/libfvad.dylib -o $@ $(SRCS)
+libfvad.$(LIBEXT): $(SRCS) include/fvad.h
+	$(CC) $(CFLAGS) $(CPPFLAGS) $(SHARED) -o $@ $(SRCS)
 
 .PHONY: clean
 clean:
-	rm -f libfvad.dylib
+	rm -f libfvad.dylib libfvad.so
