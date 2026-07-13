@@ -10,6 +10,7 @@
 .claude
 data/                 # recorded sessions live in a mounted volume, not the image
 uploads/
+models/               # the ONNX model is downloaded fresh in the Dockerfile
 # mac-built shared libs; the image compiles fresh Linux .so in the build stage
 *.dylib
 *.so

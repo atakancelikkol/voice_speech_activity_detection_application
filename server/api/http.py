@@ -10,7 +10,7 @@ from pathlib import Path
 
 import numpy as np
 from fastapi import FastAPI, File, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -282,6 +282,11 @@ def build_app(state) -> FastAPI:
             pass
         finally:
             state.hub.detach(ws)
+
+    @app.get("/favicon.ico")
+    def favicon():
+        # no icon shipped; answer cleanly so the browser stops logging a 404
+        return Response(status_code=204)
 
     if STATIC_DIR.is_dir():
         app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")

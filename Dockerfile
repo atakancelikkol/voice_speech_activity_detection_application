@@ -18,9 +18,18 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy PYTHONUNBUFFERED=1
 WORKDIR /app
 
-# libgomp1 is onnxruntime's runtime dependency
-RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 ca-certificates \
+# libgomp1 is onnxruntime's runtime dependency; curl fetches the ONNX model
+RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 ca-certificates curl \
     && rm -rf /var/lib/apt/lists/*
+
+# Silero ONNX model (the C-lib engines are built in the cbuild stage; ten-vad
+# ships its model in the wheel). Baked into the image so the engine is available
+# out of the box — done early so app-code edits don't re-download it.
+RUN mkdir -p models && \
+    curl -sSfL -o models/silero_vad.onnx \
+      "https://github.com/snakers4/silero-vad/raw/v5.1.2/src/silero_vad/data/silero_vad.onnx" && \
+    echo "2623a2953f6ff3d2c1e61740c6cdb7168133479b267dfef114a4a3cc5bdd788f  models/silero_vad.onnx" \
+      | sha256sum -c -
 
 # 1) dependencies first so editing app code doesn't re-resolve everything
 COPY pyproject.toml uv.lock ./

@@ -6,10 +6,13 @@ click; multiple engines run simultaneously by design).
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from server.vad import registry
 from server.vad.base import VadEngine
+
+log = logging.getLogger("engines")
 
 
 class EngineManager:
@@ -51,7 +54,10 @@ class EngineManager:
         for name, info in self.infos.items():
             if not (self.enabled[name] and info.available):
                 continue
-            engines[name] = registry.create(info, self.params[name])
+            try:
+                engines[name] = registry.create(info, self.params[name])
+            except Exception as exc:  # a broken engine must not sink the whole recording
+                log.warning("engine %s failed to start, skipping this call: %s", name, exc)
         return engines
 
     def instantiate(self, name: str) -> VadEngine:
