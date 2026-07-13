@@ -173,6 +173,9 @@ function handleMessage(msg) {
         els.liveBadge.classList.remove("active");
         if (state.currentSession === msg.session_id) openSession(msg.session_id);
         else refreshSessions();
+        // clear the "processing…" hint once the finished recording is in
+        if (recorder.mode === "browser" && !browserRec.recording)
+          setRecHint("one click: speak into the mic, click again to stop — all engines run live", false);
       }
       break;
     case "audio_peaks":
@@ -198,7 +201,10 @@ function handleMessage(msg) {
 }
 
 function connectWs() {
-  const ws = new WebSocket(`ws://${location.host}/ws`);
+  // wss:// on an HTTPS page — a secure page can't open an insecure ws:// socket
+  // (mixed content), so the live hub was silently blocked on the deployed site.
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  const ws = new WebSocket(`${proto}://${location.host}/ws`);
   ws.onmessage = (e) => handleMessage(JSON.parse(e.data));
   ws.onclose = () => setTimeout(connectWs, 1500);
 }
@@ -368,7 +374,9 @@ async function toggleBrowserRecording() {
       recorder.state = "idle";
       els.recordBtn.classList.remove("recording");
       els.recordBtn.innerHTML = "&#127908; Record";
-      setRecHint("one click: speak into the mic, click again to stop — all engines run live", false);
+      // the server is finalizing (writing the WAV + last engine frames); the hub's
+      // call_state 'finished' clears this and opens the result
+      setRecHint("processing — finishing the recording…", false);
     }
   } catch (err) {
     await stopBrowserRecording().catch(() => {});
@@ -422,7 +430,7 @@ els.wavFileInput.onchange = async () => {
   recorder.busy = true;
   els.wavBtn.disabled = true;
   try {
-    setRecHint(`uploading ${file.name}…`, false);
+    setRecHint(`processing — uploading & analyzing ${file.name}…`, false);
     const fd = new FormData();
     fd.append("file", file);
     // browser mode has no softphone client: analyze the WAV headless instead
