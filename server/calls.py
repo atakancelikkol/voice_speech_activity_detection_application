@@ -202,6 +202,38 @@ class CallManager:
         self._free_ports = list(range(config.rtp_port_min, config.rtp_port_max + 1, 2))
         self._active: dict[str, dict] = {}  # call_id -> {pipeline, transport, protocol, rtp_port}
 
+    def create_recording_pipeline(self, call_id: str) -> CallPipeline:
+        """Build a recording pipeline (new session dir + enabled engines) that is
+        fed directly rather than over RTP. Used by the browser-microphone
+        WebSocket ingest: the browser pushes decoded 8 kHz PCM straight into
+        pipeline.on_audio, so there is no SIP/RTP and no softphone client — the
+        same live timeline works in a headless container. Publishes the same
+        call_state 'active' the SIP path does, so the UI switches to live view."""
+        session_id, session_dir = self.store.new_session_dir(call_id)
+        engines = self.engine_manager.instantiate_enabled()
+        pipeline = CallPipeline(
+            session_id,
+            session_dir,
+            engines,
+            self.engine_manager.active_configs(),
+            self.hub,
+            call_id,
+        )
+        if self.hub:
+            self.hub.publish({"kind": "call_state", "state": "active", "session_id": session_id})
+        return pipeline
+
+    def finalize_recording_pipeline(self, pipeline: CallPipeline) -> str:
+        """Finalize + persist a pipeline from create_recording_pipeline and
+        announce it finished (mirrors end_call for the RTP path)."""
+        payload = pipeline.finalize()
+        self.store.write_session(pipeline.session_id, payload)
+        if self.hub:
+            self.hub.publish(
+                {"kind": "call_state", "state": "finished", "session_id": pipeline.session_id}
+            )
+        return pipeline.session_id
+
     async def start_call(self, call_id: str) -> tuple[int, CallPipeline]:
         if call_id in self._active:
             entry = self._active[call_id]

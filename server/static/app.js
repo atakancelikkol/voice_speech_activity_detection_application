@@ -97,7 +97,6 @@ async function openSession(id) {
 // re-analyze so tuning doesn't reset the graph the user is inspecting).
 function renderSession(session, { preserveView = false } = {}) {
   const view = { ...timeline.view };
-  const sessionChanged = state.currentSession !== session.id;
   state.currentSession = session.id;
   state.annotationsDirty = false;
   const lanes = Object.entries(session.engines).map(([name, r]) => ({
@@ -119,13 +118,15 @@ function renderSession(session, { preserveView = false } = {}) {
     timeline.requestRender();
   }
   els.title.textContent = `${session.id} (${(session.duration_ms / 1000).toFixed(1)}s)`;
-  // Only (re)load the player when switching to a different recording. Reassigning
-  // audio.src mid-playback aborts the current play() with a console error and can
-  // leave the player stuck on the previous clip's position; and on re-analyze of
-  // the SAME session (preserveView) we must not interrupt playback at all.
-  if (sessionChanged) {
+  // (Re)load the player only when the source actually changes: switching to a
+  // different recording, or returning from a live view (audio was hidden and
+  // pointed at the previous clip). Re-analyze of the same open recording keeps
+  // the same URL, so we don't reassign audio.src mid-playback — doing so aborts
+  // the current play() with a console error and strands the player's position.
+  const audioUrl = `/api/sessions/${session.id}/audio.wav`;
+  if (!audio.src.endsWith(audioUrl)) {
     audio.pause();
-    audio.src = `/api/sessions/${session.id}/audio.wav`;
+    audio.src = audioUrl;
     audio.load();
   }
   audio.style.display = "";
@@ -204,7 +205,7 @@ function connectWs() {
 
 /* ---------- one-button recorder (drives the softphone client) ---------- */
 
-const recorder = { running: false, state: "idle", busy: false };
+const recorder = { running: false, state: "idle", busy: false, mode: "softphone" };
 
 async function readErrorDetail(res) {
   try {
@@ -251,20 +252,139 @@ function setRecHint(text, isError) {
 }
 
 async function pollSoftphone() {
+  let running = false;
   try {
     const data = await (await fetch("/api/softphone")).json();
-    recorder.running = data.running;
-    recorder.state = data.status?.state || "idle";
-    renderRecorder(data.status);
+    running = !!data.running;
+    if (running) {
+      recorder.mode = "softphone";
+      recorder.running = true;
+      recorder.state = data.status?.state || "idle";
+      renderRecorder(data.status);
+    }
   } catch {
-    recorder.running = false;
+    /* no softphone client reachable — fall back to browser-mic mode below */
+  }
+  if (!running) enterBrowserMode();
+  setTimeout(pollSoftphone, recorder.state === "idle" ? 2000 : 300);
+}
+
+// No local softphone client (e.g. the hosted public app): record straight from
+// the browser's microphone instead. The button is always available in this mode.
+function enterBrowserMode() {
+  recorder.mode = "browser";
+  recorder.running = true;
+  if (!browserRec.recording) {
+    recorder.state = "idle";
     renderRecorder(null);
   }
-  setTimeout(pollSoftphone, recorder.state === "idle" ? 2000 : 300);
+}
+
+/* ---------- browser-microphone capture (getUserMedia -> 8 kHz PCM -> /api/record) ---------- */
+
+const browserRec = { ws: null, ctx: null, stream: null, node: null, recording: false };
+
+// Runs on the audio thread: convert each float frame to int16 and hand it back.
+const CAPTURE_WORKLET = `
+class PCMCapture extends AudioWorkletProcessor {
+  process(inputs) {
+    const ch = inputs[0][0];
+    if (ch) {
+      const pcm = new Int16Array(ch.length);
+      for (let i = 0; i < ch.length; i++) {
+        const s = Math.max(-1, Math.min(1, ch[i]));
+        pcm[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+      }
+      this.port.postMessage(pcm.buffer, [pcm.buffer]);
+    }
+    return true;
+  }
+}
+registerProcessor('pcm-capture', PCMCapture);
+`;
+
+async function startBrowserRecording() {
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: { channelCount: 1, echoCancellation: true, noiseSuppression: false, autoGainControl: false },
+  });
+  // Forcing the context to 8 kHz makes the browser resample the mic for us.
+  const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 8000 });
+  const url = URL.createObjectURL(new Blob([CAPTURE_WORKLET], { type: "application/javascript" }));
+  try {
+    await ctx.audioWorklet.addModule(url);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  const ws = new WebSocket(`${proto}://${location.host}/api/record`);
+  ws.binaryType = "arraybuffer";
+  await new Promise((resolve, reject) => {
+    ws.onopen = resolve;
+    ws.onerror = () => reject(new Error("recording connection failed"));
+  });
+  const src = ctx.createMediaStreamSource(stream);
+  const node = new AudioWorkletNode(ctx, "pcm-capture");
+  node.port.onmessage = (e) => {
+    if (ws.readyState === WebSocket.OPEN) ws.send(e.data);
+    const a = new Int16Array(e.data);
+    let peak = 0;
+    for (let i = 0; i < a.length; i++) {
+      const v = Math.abs(a[i]);
+      if (v > peak) peak = v;
+    }
+    els.recLevelFill.style.width = Math.min(100, (peak / 32768) * 300) + "%";
+  };
+  src.connect(node);
+  node.connect(ctx.destination); // keep the graph pulling; the node emits silence
+  Object.assign(browserRec, { ws, ctx, stream, node, recording: true });
+}
+
+async function stopBrowserRecording() {
+  const { ws, ctx, stream, node } = browserRec;
+  browserRec.recording = false;
+  try { node && node.disconnect(); } catch {}
+  try { stream && stream.getTracks().forEach((t) => t.stop()); } catch {}
+  try { if (ws && ws.readyState === WebSocket.OPEN) ws.send("stop"); } catch {}
+  try { ctx && (await ctx.close()); } catch {}
+  try { ws && ws.close(); } catch {}
+  Object.assign(browserRec, { ws: null, ctx: null, stream: null, node: null });
+  els.recLevelFill.style.width = "0";
+}
+
+async function toggleBrowserRecording() {
+  if (recorder.busy) return;
+  recorder.busy = true;
+  els.recordBtn.disabled = true;
+  try {
+    if (!browserRec.recording) {
+      setRecHint("starting microphone…", false);
+      await startBrowserRecording();
+      recorder.state = "active";
+      els.recordBtn.classList.add("recording");
+      els.recordBtn.innerHTML = "&#9632; Stop";
+      setRecHint("recording — speak now; Stop opens the results", false);
+    } else {
+      await stopBrowserRecording();
+      recorder.state = "idle";
+      els.recordBtn.classList.remove("recording");
+      els.recordBtn.innerHTML = "&#127908; Record";
+      setRecHint("one click: speak into the mic, click again to stop — all engines run live", false);
+    }
+  } catch (err) {
+    await stopBrowserRecording().catch(() => {});
+    recorder.state = "idle";
+    els.recordBtn.classList.remove("recording");
+    els.recordBtn.innerHTML = "&#127908; Record";
+    setRecHint(`microphone error: ${err.message || err} — allow mic access and retry`, true);
+  } finally {
+    recorder.busy = false;
+    els.recordBtn.disabled = false;
+  }
 }
 
 els.recordBtn.onclick = async () => {
   if (recorder.busy) return;
+  if (recorder.mode === "browser") return toggleBrowserRecording();
   recorder.busy = true;
   els.recordBtn.disabled = true;
   try {
@@ -305,9 +425,18 @@ els.wavFileInput.onchange = async () => {
     setRecHint(`uploading ${file.name}…`, false);
     const fd = new FormData();
     fd.append("file", file);
-    const res = await fetch("/api/softphone/upload", { method: "POST", body: fd });
-    if (!res.ok) setRecHint(await readErrorDetail(res), true);
-    else recorder.state = "active"; // the file plays out, then the call ends on its own
+    // browser mode has no softphone client: analyze the WAV headless instead
+    const endpoint = recorder.mode === "browser" ? "/api/record/upload" : "/api/softphone/upload";
+    const res = await fetch(endpoint, { method: "POST", body: fd });
+    if (!res.ok) {
+      setRecHint(await readErrorDetail(res), true);
+    } else if (recorder.mode === "browser") {
+      const { session_id } = await res.json();
+      setRecHint("one click: speak into the mic, click again to stop — all engines run live", false);
+      if (session_id) openSession(session_id);
+    } else {
+      recorder.state = "active"; // the file plays out, then the call ends on its own
+    }
   } catch (err) {
     setRecHint(`upload failed: ${err.message || err}`, true);
   } finally {

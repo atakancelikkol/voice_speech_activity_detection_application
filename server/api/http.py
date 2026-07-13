@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import secrets
 import shutil
 from pathlib import Path
 
+import numpy as np
 from fastapi import FastAPI, File, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+
+from server.vad.runner import SOURCE_RATE
 
 STATIC_DIR = Path(__file__).resolve().parents[1] / "static"
 
@@ -200,6 +204,71 @@ def build_app(state) -> FastAPI:
         if code != 200:
             raise HTTPException(code, body.get("detail", "softphone error"))
         return body
+
+    @app.post("/api/record/upload")
+    async def record_upload(file: UploadFile = File(...)):
+        """Headless WAV analysis: run every enabled engine over an uploaded WAV
+        and persist it as a session — no softphone/SIP, so it works in a
+        container. Reuses the recording pipeline, so the result is identical in
+        shape to a live mic recording."""
+        name = Path(file.filename or "upload.wav").name
+        if not name.lower().endswith(".wav"):
+            raise HTTPException(422, "only .wav files are supported")
+        data = await file.read()
+
+        def _load():
+            import tempfile
+
+            from server.audio.wav_io import load_wav
+
+            with tempfile.NamedTemporaryFile(suffix=".wav") as tmp:
+                tmp.write(data)
+                tmp.flush()
+                return load_wav(tmp.name, SOURCE_RATE)
+
+        try:
+            pcm = await asyncio.to_thread(_load)
+        except Exception as exc:
+            raise HTTPException(422, f"could not read WAV: {exc}")
+        # pipeline callbacks touch the asyncio hub, so drive it on the loop
+        pipeline = state.call_manager.create_recording_pipeline(f"upload-{secrets.token_hex(4)}")
+        chunk = SOURCE_RATE * 20 // 1000
+        for i in range(0, len(pcm), chunk):
+            pipeline.on_audio(pcm[i : i + chunk])
+        session_id = state.call_manager.finalize_recording_pipeline(pipeline)
+        return {"session_id": session_id}
+
+    @app.websocket("/api/record")
+    async def record_ws(ws: WebSocket):
+        """Browser-microphone ingest: the page streams 8 kHz mono int16 PCM
+        frames and we feed them into a recording pipeline exactly like RTP audio
+        (no SIP, no softphone client — works headless in a container). The live
+        timeline updates over the main /ws hub via call_state 'active'; on close
+        we finalize and persist the session."""
+        await ws.accept()
+        pipeline = state.call_manager.create_recording_pipeline(f"browser-{secrets.token_hex(4)}")
+        with contextlib.suppress(Exception):
+            await ws.send_json({"kind": "recording_started", "session_id": pipeline.session_id})
+        try:
+            while True:
+                message = await ws.receive()
+                if message["type"] == "websocket.disconnect":
+                    break
+                data = message.get("bytes")
+                if data:
+                    pcm = np.frombuffer(data, dtype=np.int16)
+                    if len(pcm):
+                        pipeline.on_audio(pcm)
+                elif message.get("text") == "stop":
+                    break
+        except WebSocketDisconnect:
+            pass
+        finally:
+            session_id = state.call_manager.finalize_recording_pipeline(pipeline)
+            with contextlib.suppress(Exception):
+                await ws.send_json({"kind": "recording_finished", "session_id": session_id})
+            with contextlib.suppress(Exception):
+                await ws.close()
 
     @app.websocket("/ws")
     async def ws_endpoint(ws: WebSocket):
