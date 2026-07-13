@@ -31,19 +31,22 @@ RUN mkdir -p models && \
     echo "2623a2953f6ff3d2c1e61740c6cdb7168133479b267dfef114a4a3cc5bdd788f  models/silero_vad.onnx" \
       | sha256sum -c -
 
-# 1) dependencies first so editing app code doesn't re-resolve everything
+# 1) dependencies first so editing app code doesn't re-resolve everything.
+#    --extra ten pulls ten-vad from the lockfile (it's a py3-none-any wheel, so it
+#    installs on any arch; the engine only reports "unavailable" at runtime if the
+#    bundled native lib doesn't match the CPU, e.g. on ARM). Locked + managed, so
+#    it is reliably present — no fragile post-install.
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev --no-install-project
+RUN uv sync --frozen --no-dev --no-install-project --extra ten
 
 # 2) app source + the Linux .so built above, then install the project itself
 COPY . .
 COPY --from=cbuild /app/third_party/ third_party/
-RUN uv sync --frozen --no-dev
-# ten_vad ships prebuilt wheels that may not cover every CPU arch; make it
-# best-effort so the image still builds — its engine just reports "unavailable".
-RUN uv pip install ten-vad || echo "WARN: ten-vad not installed on this platform"
+RUN uv sync --frozen --no-dev --extra ten
 
 EXPOSE 8080
 # --no-client: no softphone client in the container — recording is the browser's
 # own microphone over /api/record. --host 0.0.0.0 so the VM can serve it.
-CMD ["uv", "run", "vad-server", "--no-client", "--host", "0.0.0.0", "--http-port", "8080"]
+# --no-sync: run the environment exactly as built; without it `uv run` re-syncs to
+# the base deps and strips the `ten` extra (ten-vad) at startup.
+CMD ["uv", "run", "--no-sync", "vad-server", "--no-client", "--host", "0.0.0.0", "--http-port", "8080"]
