@@ -1,0 +1,19 @@
+# keep the build context small and the image clean
+.git
+.gitignore
+.venv
+**/__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+.idea
+.claude
+data/                 # recorded sessions live in a mounted volume, not the image
+uploads/
+# mac-built shared libs; the image compiles fresh Linux .so in the build stage
+*.dylib
+*.so
+# docs/dev-only
+KULLANIM.md
+tests/
+*.md

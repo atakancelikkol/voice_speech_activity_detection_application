@@ -1,0 +1,36 @@
+# Public deployment: the VAD server behind Caddy (TLS termination).
+#
+#   SITE_ADDRESS=vad.example.com docker compose up -d --build   # HTTPS + mic
+#   docker compose up -d --build                                # HTTP on :80
+#
+# The browser microphone (getUserMedia) only works over HTTPS or localhost, so
+# set SITE_ADDRESS to a real domain (A record -> this host) to enable recording.
+services:
+  vad:
+    build: .
+    image: vad-comparison
+    restart: unless-stopped
+    volumes:
+      - vad-data:/app/data # persist recorded sessions across restarts
+    expose:
+      - "8080" # internal only; Caddy publishes it
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on: [vad]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # a domain -> automatic HTTPS (mic works); ":80" -> plain HTTP (upload only)
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  vad-data:
+  caddy-data:
+  caddy-config:

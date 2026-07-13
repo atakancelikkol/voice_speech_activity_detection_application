@@ -1,0 +1,10 @@
+# Reverse proxy that terminates TLS in front of the VAD server.
+#
+# SITE_ADDRESS is set in docker-compose.yml:
+#   - a domain (e.g. vad.example.com) -> Caddy auto-provisions a Let's Encrypt
+#     cert, so the site is HTTPS and the browser microphone (getUserMedia) works.
+#   - :80 (default) -> plain HTTP; WAV upload works, but live mic recording does
+#     NOT, because browsers only allow getUserMedia on HTTPS or localhost.
+{$SITE_ADDRESS} {
+	reverse_proxy vad:8080
+}

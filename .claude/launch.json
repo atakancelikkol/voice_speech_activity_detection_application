@@ -18,6 +18,25 @@
       ],
       "port": 8090,
       "autoPort": false
+    },
+    {
+      "name": "vad-server-noclient",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": [
+        "run",
+        "vad-server",
+        "--no-client",
+        "--http-port",
+        "8091",
+        "--sip-port",
+        "5071",
+        "--rtp-port-min",
+        "40240",
+        "--rtp-port-max",
+        "40259"
+      ],
+      "port": 8091,
+      "autoPort": false
     }
   ]
 }
