@@ -105,6 +105,28 @@ class VadEngine(ABC):
         """Cheap availability check: (available, reason-if-not)."""
         return True, ""
 
+    @classmethod
+    def score_axis(cls, config: dict[str, Any]) -> dict[str, Any]:
+        """Native-unit y-axis descriptor for this engine's score lane.
+
+        The plotted score is always normalized 0..1, but its native meaning
+        differs per engine (probability, SNR in dB, log amplitude, ...). This
+        maps that 0..1 height back to native units for display:
+        ``{"unit": str, "ticks": [{"frac", "label", "kind"}]}`` where ``frac``
+        is the 0..1 score height, ``label`` is the native value there, and
+        ``kind`` is ``"scale"`` (an axis gridline) or ``"threshold"`` (the
+        engine's decision boundary). Depends only on config, not the audio.
+        Default: a plain 0..1 axis.
+        """
+        return {
+            "unit": "",
+            "ticks": [
+                {"frac": 0.0, "label": "0", "kind": "scale"},
+                {"frac": 0.5, "label": "0.5", "kind": "scale"},
+                {"frac": 1.0, "label": "1", "kind": "scale"},
+            ],
+        }
+
     def __init__(self, params: dict[str, Any] | None = None):
         self.config = resolve_params(self.params, params or {})
 

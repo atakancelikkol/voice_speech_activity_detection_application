@@ -154,6 +154,18 @@ class Engine(VadEngine):
         return cls._lib
 
     @classmethod
+    def score_axis(cls, config: dict[str, Any]) -> dict[str, Any]:
+        # the plotted value is SNR over the adaptive noise floor, mapped
+        # snr/30 dB -> 0..1 for display. Label the axis in real dB and mark the
+        # onset/offset SNR gates (the actual speech on/off decision points).
+        full = _SNR_FULL_SCALE_DB
+        ticks = [{"frac": db / full, "label": str(db), "kind": "scale"} for db in (0, 10, 20, 30)]
+        for label, key in (("onset", "onset_snr"), ("offset", "offset_snr")):
+            db = config[key]
+            ticks.append({"frac": min(1.0, max(0.0, db / full)), "label": f"{label} {db:g}", "kind": "threshold"})
+        return {"unit": "dB SNR", "ticks": ticks}
+
+    @classmethod
     def _get_fvad_lib(cls) -> ctypes.CDLL:
         if cls._fvad_lib is None:
             cls._fvad_lib = _load_fvad_lib()

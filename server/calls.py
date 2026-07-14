@@ -160,6 +160,7 @@ class CallPipeline:
             segments = runner.finalize()
             engines_payload[name] = {
                 "config": self.engine_configs.get(name, {}),
+                "axis": runner.engine.score_axis(runner.engine.config),
                 "segments": [seg.as_dict() for seg in segments],
                 "events": [{"kind": e.kind.value, "at_ms": round(e.at_ms, 1)} for e in runner.events],
                 "scores": self._grid_scores(self.scores[name]),

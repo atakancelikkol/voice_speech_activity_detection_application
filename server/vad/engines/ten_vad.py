@@ -44,6 +44,19 @@ class Engine(VadEngine):
             return False, f"ten-vad unavailable: {exc}"
         return True, ""
 
+    @classmethod
+    def score_axis(cls, config: dict[str, Any]) -> dict[str, Any]:
+        thr = config["threshold"]
+        return {
+            "unit": "prob",
+            "ticks": [
+                {"frac": 0.0, "label": "0", "kind": "scale"},
+                {"frac": 0.5, "label": "0.5", "kind": "scale"},
+                {"frac": 1.0, "label": "1", "kind": "scale"},
+                {"frac": thr, "label": f"{thr:.2f}", "kind": "threshold"},
+            ],
+        }
+
     def __init__(self, params: dict[str, Any] | None = None):
         super().__init__(params)
         from ten_vad import TenVad

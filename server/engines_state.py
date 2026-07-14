@@ -29,6 +29,8 @@ class EngineManager:
             entry["values"] = {
                 spec.name: self.params[name].get(spec.name, spec.default) for spec in info.params
             }
+            if info.cls is not None:
+                entry["axis"] = info.cls.score_axis(entry["values"])
             out.append(entry)
         return out
 

@@ -25,10 +25,6 @@ class EngineUpdate(BaseModel):
     params: dict | None = None
 
 
-class Annotations(BaseModel):
-    speech_regions: list[dict]
-
-
 class SoftphoneStart(BaseModel):
     mode: str = "mic"
     wav_path: str | None = None
@@ -89,7 +85,6 @@ def build_app(state) -> FastAPI:
             session = state.store.read_session(session_id)
         except (KeyError, ValueError, FileNotFoundError):
             raise HTTPException(404, f"no such session: {session_id}")
-        session["annotations"] = state.store.read_annotations(session_id)
         return session
 
     @app.get("/api/sessions/{session_id}/audio.wav")
@@ -131,21 +126,6 @@ def build_app(state) -> FastAPI:
                 enhancer.close()
         return Response(wav_bytes(pcm, 8000), media_type="audio/wav")
 
-    @app.get("/api/sessions/{session_id}/annotations")
-    def get_annotations(session_id: str):
-        try:
-            return state.store.read_annotations(session_id)
-        except (KeyError, ValueError):
-            raise HTTPException(404, f"no such session: {session_id}")
-
-    @app.put("/api/sessions/{session_id}/annotations")
-    def put_annotations(session_id: str, payload: Annotations):
-        try:
-            state.store.write_annotations(session_id, payload.model_dump())
-        except (KeyError, ValueError):
-            raise HTTPException(404, f"no such session: {session_id}")
-        return {"ok": True}
-
     @app.post("/api/sessions/{session_id}/reanalyze")
     async def reanalyze_session(session_id: str, payload: Reanalyze):
         from server.analysis import reanalyze_session as run_reanalyze
@@ -163,7 +143,6 @@ def build_app(state) -> FastAPI:
             raise HTTPException(404, f"no such session: {session_id}")
         except ValueError as exc:
             raise HTTPException(422, str(exc))
-        session["annotations"] = state.store.read_annotations(session_id)
         return session
 
     @app.get("/api/softphone")

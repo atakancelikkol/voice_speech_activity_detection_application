@@ -37,6 +37,7 @@ def analyze_pcm(engine: VadEngine, pcm: np.ndarray, config: dict | None = None) 
     duration_ms = len(pcm) * 1000.0 / SOURCE_RATE
     return {
         "config": config or {},
+        "axis": engine.score_axis(engine.config),
         "segments": [seg.as_dict() for seg in segments],
         "events": [{"kind": e.kind.value, "at_ms": round(e.at_ms, 1)} for e in runner.events],
         "scores": grid_scores(all_scores, duration_ms),
@@ -53,8 +54,7 @@ def reanalyze_session(
     runs on the untouched audio and the enhancer only cleans what is streamed to
     the recognizer (STT), never the detector's input. To hear the enhanced audio
     the recognizer would receive, use the /enhanced.wav endpoint; it does not
-    change any engine's segments. Ground-truth annotations live in a separate
-    file and are untouched.
+    change any engine's segments.
 
     engine_names=None means "every currently enabled engine".
     """

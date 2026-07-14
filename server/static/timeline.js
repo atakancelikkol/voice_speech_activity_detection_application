@@ -1,7 +1,6 @@
 /* Timeline: canvas component drawing a shared time axis with
  *  - waveform lane (min/max peak pairs)
  *  - one lane per VAD engine: score curve + detected speech segment bars
- *  - ground-truth annotation lane (drag-editable when enabled)
  * Supports live append, wheel zoom, drag pan, click seek, follow-live.
  */
 
@@ -9,12 +8,20 @@ const AXIS_H = 24;
 const LABEL_W = 118;
 const WAVE_H = 96;
 const LANE_H = 74;
-const ANNO_H = 46;
 
 const GRID_COLOR = "#242933";
 const TEXT_COLOR = "#9aa";
 const WAVE_COLOR = "#74c0fc";
-const ANNO_COLOR = "#ff6b6b";
+
+// fallback y axis for legacy sessions persisted before engines emitted one
+const DEFAULT_AXIS = {
+  unit: "",
+  ticks: [
+    { frac: 0, label: "0", kind: "scale" },
+    { frac: 0.5, label: "0.5", kind: "scale" },
+    { frac: 1, label: "1", kind: "scale" },
+  ],
+};
 
 export class Timeline {
   constructor(canvas) {
@@ -24,8 +31,6 @@ export class Timeline {
     this.playhead = null;
     this.follow = true;
     this.onSeek = null;
-    this.onAnnotationsChanged = null;
-    this.annotationEditing = false;
     this._drag = null;
     this._raf = null;
     this._bind();
@@ -36,7 +41,6 @@ export class Timeline {
     this.duration = 0;
     this.peaks = { dt: 10, values: [] };
     this.lanes = []; // {name,color,points:[[t,score]],segments:[],events:[]}
-    this.annotations = []; // {start_ms,end_ms}
     this.live = false;
     this.view = { tLeft: 0, msPerPx: 20 };
   }
@@ -55,12 +59,11 @@ export class Timeline {
     return lane;
   }
 
-  setModel({ duration, peaks, lanes, annotations, live }) {
+  setModel({ duration, peaks, lanes, live }) {
     this.reset();
     this.duration = duration || 0;
     if (peaks) this.peaks = peaks;
     this.lanes = lanes || [];
-    this.annotations = annotations || [];
     this.live = !!live;
     this._resize();
     this.fit();
@@ -123,7 +126,7 @@ export class Timeline {
   }
 
   _height() {
-    return AXIS_H + WAVE_H + this.lanes.length * LANE_H + ANNO_H + 6;
+    return AXIS_H + WAVE_H + this.lanes.length * LANE_H + 6;
   }
 
   _resize() {
@@ -139,7 +142,7 @@ export class Timeline {
     return this.view.tLeft + (x - LABEL_W) * this.view.msPerPx;
   }
 
-  _annoTop() {
+  _lanesBottom() {
     return AXIS_H + WAVE_H + this.lanes.length * LANE_H;
   }
 
@@ -168,7 +171,6 @@ export class Timeline {
     this._drawAxis(ctx, cssW);
     this._drawWaveLane(ctx, cssW);
     this.lanes.forEach((lane, i) => this._drawEngineLane(ctx, cssW, lane, AXIS_H + WAVE_H + i * LANE_H));
-    this._drawAnnotationLane(ctx, cssW);
     this._drawPlayhead(ctx, cssH);
   }
 
@@ -206,7 +208,7 @@ export class Timeline {
       if (x < LABEL_W) continue;
       ctx.beginPath();
       ctx.moveTo(x, AXIS_H - 6);
-      ctx.lineTo(x, this._annoTop() + ANNO_H);
+      ctx.lineTo(x, this._lanesBottom());
       ctx.stroke();
       ctx.fillText(fmtTime(t), x, 4);
     }
@@ -240,10 +242,44 @@ export class Timeline {
     ctx.stroke();
   }
 
+  // native-unit y axis for the score lane. Each engine's score is normalized
+  // 0..1 for plotting but means something different natively (probability, SNR
+  // in dB, log amplitude...), so lane.axis maps 0..1 heights back to native
+  // units: "scale" ticks are gridlines + labels in the left gutter, "threshold"
+  // ticks are the engine's decision boundary, dashed in its colour and labelled
+  // at the right edge. Falls back to a plain 0..1 axis for legacy sessions.
+  _drawScoreAxis(ctx, w, bottom, scoreH, lane) {
+    const axis = lane.axis || DEFAULT_AXIS;
+    ctx.font = "9px system-ui";
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "right";
+    for (const tick of axis.ticks) {
+      const y = bottom - Math.min(1, Math.max(0, tick.frac)) * scoreH;
+      const thr = tick.kind === "threshold";
+      ctx.strokeStyle = thr ? lane.color : GRID_COLOR;
+      ctx.globalAlpha = thr ? 0.85 : 1;
+      ctx.setLineDash(thr ? [3, 3] : []);
+      ctx.beginPath();
+      ctx.moveTo(LABEL_W, y + 0.5);
+      ctx.lineTo(w, y + 0.5);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = thr ? lane.color : TEXT_COLOR;
+      ctx.fillText(tick.label, thr ? w - 4 : LABEL_W - 5, y);
+    }
+    ctx.globalAlpha = 1;
+    if (axis.unit) {
+      ctx.fillStyle = TEXT_COLOR;
+      ctx.fillText(axis.unit, LABEL_W - 5, bottom - scoreH - 8);
+    }
+  }
+
   _drawEngineLane(ctx, w, lane, top) {
     this._drawLaneFrame(ctx, w, top, LANE_H, lane.name, lane.color);
     const bottom = top + LANE_H - 6;
     const scoreH = LANE_H - 26;
+
+    this._drawScoreAxis(ctx, w, bottom, scoreH, lane);
 
     // segment bars
     for (const seg of lane.segments) {
@@ -298,31 +334,6 @@ export class Timeline {
     }
   }
 
-  _drawAnnotationLane(ctx, w) {
-    const top = this._annoTop();
-    this._drawLaneFrame(ctx, w, top, ANNO_H, "ground truth", ANNO_COLOR);
-    for (const region of this.annotations) {
-      const x0 = Math.max(LABEL_W, this._xOf(region.start_ms));
-      const x1 = Math.min(w, this._xOf(region.end_ms));
-      if (x1 < LABEL_W || x0 > w) continue;
-      ctx.fillStyle = ANNO_COLOR + "55";
-      ctx.fillRect(x0, top + 6, x1 - x0, ANNO_H - 12);
-      ctx.strokeStyle = ANNO_COLOR;
-      ctx.strokeRect(x0 + 0.5, top + 6.5, x1 - x0 - 1, ANNO_H - 13);
-      if (this.annotationEditing) {
-        ctx.fillStyle = ANNO_COLOR;
-        ctx.fillRect(x0, top + 6, 3, ANNO_H - 12);
-        ctx.fillRect(x1 - 3, top + 6, 3, ANNO_H - 12);
-      }
-    }
-    if (this.annotationEditing) {
-      ctx.fillStyle = TEXT_COLOR;
-      ctx.font = "10px system-ui";
-      ctx.textAlign = "left";
-      ctx.fillText("drag to add - edges resize - double-click deletes", LABEL_W + 8, top + ANNO_H - 10);
-    }
-  }
-
   _drawPlayhead(ctx, h) {
     if (this.playhead == null) return;
     const x = this._xOf(this.playhead);
@@ -350,43 +361,18 @@ export class Timeline {
     }, { passive: false });
 
     canvas.addEventListener("mousedown", (e) => {
-      const t = this._tOf(e.offsetX);
-      if (this.annotationEditing && this._inAnnoLane(e.offsetY)) {
-        this._drag = this._annoDragFor(t);
-      } else {
-        this._drag = { kind: "pan", startX: e.offsetX, startTLeft: this.view.tLeft, moved: false };
-      }
+      this._drag = { kind: "pan", startX: e.offsetX, startTLeft: this.view.tLeft, moved: false };
     });
 
     window.addEventListener("mousemove", (e) => {
       if (!this._drag) return;
       const rect = canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
-      const t = Math.max(0, Math.min(this.duration, this._tOf(x)));
       const drag = this._drag;
-      if (drag.kind === "pan") {
-        const dx = x - drag.startX;
-        if (Math.abs(dx) > 3) drag.moved = true;
-        this.view.tLeft = Math.max(0, drag.startTLeft - dx * this.view.msPerPx);
-        if (drag.moved) this.follow = false;
-      } else if (drag.kind === "create") {
-        drag.region.start_ms = Math.min(drag.anchor, t);
-        drag.region.end_ms = Math.max(drag.anchor, t);
-        drag.moved = true;
-      } else if (drag.kind === "resize-start") {
-        drag.region.start_ms = Math.min(t, drag.region.end_ms - 20);
-        drag.moved = true;
-      } else if (drag.kind === "resize-end") {
-        drag.region.end_ms = Math.max(t, drag.region.start_ms + 20);
-        drag.moved = true;
-      } else if (drag.kind === "move") {
-        const span = drag.region.end_ms - drag.region.start_ms;
-        let start = t - drag.grabOffset;
-        start = Math.max(0, Math.min(start, this.duration - span));
-        drag.region.start_ms = start;
-        drag.region.end_ms = start + span;
-        drag.moved = true;
-      }
+      const dx = x - drag.startX;
+      if (Math.abs(dx) > 3) drag.moved = true;
+      this.view.tLeft = Math.max(0, drag.startTLeft - dx * this.view.msPerPx);
+      if (drag.moved) this.follow = false;
       this.requestRender();
     });
 
@@ -394,50 +380,12 @@ export class Timeline {
       const drag = this._drag;
       this._drag = null;
       if (!drag) return;
-      if (drag.kind === "pan" && !drag.moved) {
+      if (!drag.moved) {
         const rect = canvas.getBoundingClientRect();
         const t = this._tOf(e.clientX - rect.left);
         if (this.onSeek && !this.live && t >= 0 && t <= this.duration) this.onSeek(t);
-        return;
-      }
-      if (drag.kind !== "pan" && drag.moved) {
-        if (drag.kind === "create" && drag.region.end_ms - drag.region.start_ms < 20) {
-          this.annotations = this.annotations.filter((r) => r !== drag.region);
-        }
-        this.annotations.sort((a, b) => a.start_ms - b.start_ms);
-        if (this.onAnnotationsChanged) this.onAnnotationsChanged(this.annotations);
-        this.requestRender();
       }
     });
-
-    canvas.addEventListener("dblclick", (e) => {
-      if (!this.annotationEditing || !this._inAnnoLane(e.offsetY)) return;
-      const t = this._tOf(e.offsetX);
-      const hit = this.annotations.find((r) => t >= r.start_ms && t <= r.end_ms);
-      if (hit) {
-        this.annotations = this.annotations.filter((r) => r !== hit);
-        if (this.onAnnotationsChanged) this.onAnnotationsChanged(this.annotations);
-        this.requestRender();
-      }
-    });
-  }
-
-  _inAnnoLane(y) {
-    const top = this._annoTop();
-    return y >= top && y <= top + ANNO_H;
-  }
-
-  _annoDragFor(t) {
-    const grabMs = 6 * this.view.msPerPx;
-    for (const region of this.annotations) {
-      if (Math.abs(t - region.start_ms) < grabMs) return { kind: "resize-start", region, moved: false };
-      if (Math.abs(t - region.end_ms) < grabMs) return { kind: "resize-end", region, moved: false };
-      if (t > region.start_ms && t < region.end_ms)
-        return { kind: "move", region, grabOffset: t - region.start_ms, moved: false };
-    }
-    const region = { start_ms: t, end_ms: t };
-    this.annotations.push(region);
-    return { kind: "create", region, anchor: t, moved: false };
   }
 }
 

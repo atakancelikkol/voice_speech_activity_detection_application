@@ -86,6 +86,23 @@ class Engine(VadEngine):
             cls._lib = _load_lib()
         return cls._lib
 
+    @classmethod
+    def score_axis(cls, config: dict[str, Any]) -> dict[str, Any]:
+        # score = log1p(mean|sample|) / log1p(32767): a log-compressed amplitude,
+        # not a probability. Present the scale as dBFS (0 dB = full scale) so the
+        # energy reads in familiar dB, and mark the level_threshold decision line
+        # in its native mean-|sample| units (the same units the param panel tunes).
+        def frac_of_level(level: float) -> float:
+            return min(1.0, max(0.0, math.log1p(max(0.0, level)) / _LOG_FULL_SCALE))
+
+        def frac_of_dbfs(dbfs: float) -> float:
+            return frac_of_level(32767.0 * 10.0 ** (dbfs / 20.0))
+
+        ticks = [{"frac": frac_of_dbfs(db), "label": str(db), "kind": "scale"} for db in (-60, -40, -20, 0)]
+        thr = config["level_threshold"]
+        ticks.append({"frac": frac_of_level(thr), "label": f"{thr:g}", "kind": "threshold"})
+        return {"unit": "dBFS", "ticks": ticks}
+
     def __init__(self, params: dict[str, Any] | None = None):
         super().__init__(params)
         lib = self._get_lib()

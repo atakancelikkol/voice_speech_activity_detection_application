@@ -2,8 +2,6 @@
 
   <dir>/audio.wav         8 kHz mono 16-bit recording
   <dir>/session.json      meta + per-engine segments/events/scores + peaks
-  <dir>/annotations.json  ground-truth regions (separate: re-annotating
-                          never touches results)
 """
 
 from __future__ import annotations
@@ -36,15 +34,6 @@ class SessionStore:
     def audio_path(self, session_id: str) -> Path:
         return self._session_dir(session_id) / "audio.wav"
 
-    def read_annotations(self, session_id: str) -> dict:
-        path = self._session_dir(session_id) / "annotations.json"
-        if not path.exists():
-            return {"speech_regions": []}
-        return json.loads(path.read_text())
-
-    def write_annotations(self, session_id: str, payload: dict) -> None:
-        (self._session_dir(session_id) / "annotations.json").write_text(json.dumps(payload))
-
     def list_sessions(self) -> list[dict]:
         out = []
         for path in sorted(self.data_dir.iterdir(), reverse=True):
@@ -61,7 +50,6 @@ class SessionStore:
                     "started_at": meta.get("started_at"),
                     "duration_ms": meta.get("duration_ms"),
                     "engines": sorted((meta.get("engines") or {}).keys()),
-                    "annotated": (path / "annotations.json").exists(),
                 }
             )
         return out

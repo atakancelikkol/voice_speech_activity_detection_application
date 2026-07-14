@@ -99,13 +99,6 @@ def test_reanalyze_rejects_unknown_engine(seeded_store):
         reanalyze_session(store, manager, session_id, ["does_not_exist"])
 
 
-def test_reanalyze_preserves_annotations(seeded_store):
-    store, session_id, manager = seeded_store
-    store.write_annotations(session_id, {"speech_regions": [{"start_ms": 1000, "end_ms": 2000}]})
-    reanalyze_session(store, manager, session_id, None)
-    assert store.read_annotations(session_id)["speech_regions"] == [{"start_ms": 1000, "end_ms": 2000}]
-
-
 def test_reanalyze_scores_the_raw_recording(seeded_store):
     """UniMRCP-faithful: engines analyze the RAW recording, decoupled from the
     enhancer (which only feeds the /enhanced.wav preview). Re-analysis therefore
