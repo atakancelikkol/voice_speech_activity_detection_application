@@ -14,6 +14,7 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from server.rtp import g711
 from server.vad.runner import SOURCE_RATE
 
 STATIC_DIR = Path(__file__).resolve().parents[1] / "static"
@@ -206,7 +207,11 @@ def build_app(state) -> FastAPI:
         return body
 
     @app.post("/api/record/upload")
-    async def record_upload(file: UploadFile = File(...), rate: int = Query(SOURCE_RATE)):
+    async def record_upload(
+        file: UploadFile = File(...),
+        rate: int = Query(SOURCE_RATE),
+        imprint: str | None = Query(None),
+    ):
         """Headless analysis: run every enabled engine over an uploaded recording
         and persist it as a session — no softphone/SIP, so it works in a
         container. Reuses the recording pipeline, so the result is identical in
@@ -216,7 +221,9 @@ def build_app(state) -> FastAPI:
         PCM (.raw/.pcm/.sw/.s16/.lpcm/.l16) — the exact LPCM/8000/1 UniMRCP
         decodes G.711 into, so you can feed the bytes the production VAD sees.
         `rate` is the sample rate of raw PCM (default 8 kHz); it is resampled to
-        the pipeline's 8 kHz. WAV files carry their own rate and ignore `rate`."""
+        the pipeline's 8 kHz. WAV files carry their own rate and ignore `rate`.
+        `imprint` ('alaw'/'ulaw') round-trips clean audio through that G.711 codec
+        so it carries the wire companding the production VAD sees (Turkey=alaw)."""
         name = Path(file.filename or "upload.wav").name
         ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
         raw_exts = {"raw", "pcm", "sw", "s16", "lpcm", "l16"}
@@ -240,6 +247,11 @@ def build_app(state) -> FastAPI:
             pcm = await asyncio.to_thread(_load)
         except Exception as exc:
             raise HTTPException(422, f"could not read audio: {exc}")
+        if imprint:
+            try:
+                pcm = g711.imprint(pcm, imprint)
+            except ValueError as exc:
+                raise HTTPException(422, str(exc))
         # pipeline callbacks touch the asyncio hub, so drive it on the loop
         pipeline = state.call_manager.create_recording_pipeline(f"upload-{secrets.token_hex(4)}")
         chunk = SOURCE_RATE * 20 // 1000
@@ -256,6 +268,16 @@ def build_app(state) -> FastAPI:
         timeline updates over the main /ws hub via call_state 'active'; on close
         we finalize and persist the session."""
         await ws.accept()
+        # ?imprint=alaw|ulaw round-trips each mic frame through that G.711 codec
+        # so a clean browser mic carries the wire companding the production VAD
+        # sees; unknown values are ignored (feed raw). G.711 is memoryless per
+        # sample, so per-frame imprint equals whole-stream.
+        law = ws.query_params.get("imprint") or None
+        if law is not None:
+            try:
+                g711.imprint(np.zeros(1, dtype=np.int16), law)
+            except ValueError:
+                law = None
         pipeline = state.call_manager.create_recording_pipeline(f"browser-{secrets.token_hex(4)}")
         with contextlib.suppress(Exception):
             await ws.send_json({"kind": "recording_started", "session_id": pipeline.session_id})
@@ -268,6 +290,8 @@ def build_app(state) -> FastAPI:
                 if data:
                     pcm = np.frombuffer(data, dtype=np.int16)
                     if len(pcm):
+                        if law is not None:
+                            pcm = g711.imprint(pcm, law)
                         pipeline.on_audio(pcm)
                 elif message.get("text") == "stop":
                     break

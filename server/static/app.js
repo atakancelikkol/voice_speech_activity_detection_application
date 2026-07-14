@@ -37,6 +37,7 @@ const els = {
   recordBtn: document.getElementById("recordBtn"),
   wavBtn: document.getElementById("wavBtn"),
   wavFileInput: document.getElementById("wavFileInput"),
+  imprintSel: document.getElementById("imprintSel"),
   recHint: document.getElementById("recHint"),
   recLevelFill: document.getElementById("recLevelFill"),
 };
@@ -322,7 +323,9 @@ async function startBrowserRecording() {
     URL.revokeObjectURL(url);
   }
   const proto = location.protocol === "https:" ? "wss" : "ws";
-  const ws = new WebSocket(`${proto}://${location.host}/api/record`);
+  const law = els.imprintSel && els.imprintSel.value;
+  const q = law ? `?imprint=${law}` : "";
+  const ws = new WebSocket(`${proto}://${location.host}/api/record${q}`);
   ws.binaryType = "arraybuffer";
   await new Promise((resolve, reject) => {
     ws.onopen = resolve;
@@ -434,7 +437,9 @@ els.wavFileInput.onchange = async () => {
     const fd = new FormData();
     fd.append("file", file);
     // browser mode has no softphone client: analyze the WAV headless instead
-    const endpoint = recorder.mode === "browser" ? "/api/record/upload" : "/api/softphone/upload";
+    const law = els.imprintSel && els.imprintSel.value;
+    let endpoint = recorder.mode === "browser" ? "/api/record/upload" : "/api/softphone/upload";
+    if (recorder.mode === "browser" && law) endpoint += `?imprint=${law}`;
     const res = await fetch(endpoint, { method: "POST", body: fd });
     if (!res.ok) {
       setRecHint(await readErrorDetail(res), true);

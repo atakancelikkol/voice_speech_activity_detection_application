@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from server.rtp import g711
 
@@ -46,3 +47,43 @@ def test_encode_decode_idempotent_on_table():
             assert back in (0x7F, 0xFF)
         else:
             assert back == original
+
+
+# --- A-law (PCMA) — Turkey/Europe telephony -------------------------------
+
+
+def test_alaw_known_table_values():
+    # canonical g711.c alaw2linear values (verified against audioop.alaw2lin)
+    assert g711.ALAW_DECODE_TABLE[0xD5] == 8  # smallest positive step (no true 0)
+    assert g711.ALAW_DECODE_TABLE[0x55] == -8
+    assert g711.ALAW_DECODE_TABLE[0xAA] == 32256  # max positive magnitude
+    assert g711.ALAW_DECODE_TABLE[0x2A] == -32256
+
+
+def test_alaw_encode_zero_and_extremes():
+    assert g711.encode_alaw(np.array([0], dtype=np.int16)) == b"\xd5"
+    assert g711.encode_alaw(np.array([32767], dtype=np.int16)) == b"\xaa"
+    assert g711.encode_alaw(np.array([-32768], dtype=np.int16)) == b"\x2a"
+
+
+def test_alaw_round_trip_error_bounded():
+    x = np.arange(-32768, 32768, dtype=np.int16)
+    decoded = g711.decode_alaw(g711.encode_alaw(x)).astype(np.int32)
+    error = np.abs(decoded - x.astype(np.int32))
+    assert error.max() <= 512  # top A-law segment step
+    small = np.abs(x.astype(np.int32)) < 100
+    assert error[small].max() <= 8  # fine near zero
+
+
+def test_alaw_encode_decode_idempotent_on_table():
+    # A-law has no true zero, so every byte round-trips exactly (no ±0 alias)
+    all_bytes = bytes(range(256))
+    assert g711.encode_alaw(g711.decode_alaw(all_bytes)) == all_bytes
+
+
+def test_imprint_dispatch_and_reduces_amplitude_resolution():
+    x = np.arange(-32768, 32768, dtype=np.int16)
+    assert np.array_equal(g711.imprint(x, "alaw"), g711.decode_alaw(g711.encode_alaw(x)))
+    assert np.array_equal(g711.imprint(x, "PCMU"), g711.decode(g711.encode(x)))
+    with pytest.raises(ValueError):
+        g711.imprint(x, "opus")

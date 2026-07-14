@@ -12,7 +12,12 @@
   <div id="recorder">
     <span id="recHint"></span>
     <div id="recLevel"><div id="recLevelFill"></div></div>
-    <button id="wavBtn" disabled title="Pick a WAV file and analyze it through the same SIP path">&#128193; WAV file…</button>
+    <select id="imprintSel" title="Imprint telephony G.711 companding on mic/upload audio so the engines see what the production VAD sees on the wire (Turkey = A-law)">
+      <option value="">no companding</option>
+      <option value="alaw">A-law (PCMA)</option>
+      <option value="ulaw">&mu;-law (PCMU)</option>
+    </select>
+    <button id="wavBtn" disabled title="Pick a WAV or raw s16le/8k PCM file and analyze it">&#128193; WAV file…</button>
     <input type="file" id="wavFileInput" accept=".wav,audio/wav,audio/x-wav,.raw,.pcm,.sw,.s16,.lpcm,.l16,application/octet-stream" style="display:none">
     <button id="recordBtn" disabled>&#127908; Record</button>
   </div>
