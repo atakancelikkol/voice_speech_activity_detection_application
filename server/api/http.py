@@ -9,7 +9,7 @@ import shutil
 from pathlib import Path
 
 import numpy as np
-from fastapi import FastAPI, File, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, File, HTTPException, Query, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -206,20 +206,30 @@ def build_app(state) -> FastAPI:
         return body
 
     @app.post("/api/record/upload")
-    async def record_upload(file: UploadFile = File(...)):
-        """Headless WAV analysis: run every enabled engine over an uploaded WAV
+    async def record_upload(file: UploadFile = File(...), rate: int = Query(SOURCE_RATE)):
+        """Headless analysis: run every enabled engine over an uploaded recording
         and persist it as a session — no softphone/SIP, so it works in a
         container. Reuses the recording pipeline, so the result is identical in
-        shape to a live mic recording."""
+        shape to a live mic recording.
+
+        Accepts a .wav container, or headless signed 16-bit little-endian mono
+        PCM (.raw/.pcm/.sw/.s16/.lpcm/.l16) — the exact LPCM/8000/1 UniMRCP
+        decodes G.711 into, so you can feed the bytes the production VAD sees.
+        `rate` is the sample rate of raw PCM (default 8 kHz); it is resampled to
+        the pipeline's 8 kHz. WAV files carry their own rate and ignore `rate`."""
         name = Path(file.filename or "upload.wav").name
-        if not name.lower().endswith(".wav"):
-            raise HTTPException(422, "only .wav files are supported")
+        ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+        raw_exts = {"raw", "pcm", "sw", "s16", "lpcm", "l16"}
+        if ext != "wav" and ext not in raw_exts:
+            raise HTTPException(422, "supported: .wav, or raw s16le mono PCM (.raw/.pcm/.sw/.s16/.lpcm/.l16)")
         data = await file.read()
 
         def _load():
-            import tempfile
+            from server.audio.wav_io import load_raw_pcm, load_wav
 
-            from server.audio.wav_io import load_wav
+            if ext != "wav":
+                return load_raw_pcm(data, rate, SOURCE_RATE)
+            import tempfile
 
             with tempfile.NamedTemporaryFile(suffix=".wav") as tmp:
                 tmp.write(data)
@@ -229,7 +239,7 @@ def build_app(state) -> FastAPI:
         try:
             pcm = await asyncio.to_thread(_load)
         except Exception as exc:
-            raise HTTPException(422, f"could not read WAV: {exc}")
+            raise HTTPException(422, f"could not read audio: {exc}")
         # pipeline callbacks touch the asyncio hub, so drive it on the loop
         pipeline = state.call_manager.create_recording_pipeline(f"upload-{secrets.token_hex(4)}")
         chunk = SOURCE_RATE * 20 // 1000

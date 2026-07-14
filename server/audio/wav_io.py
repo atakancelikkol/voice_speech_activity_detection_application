@@ -33,6 +33,21 @@ def load_wav(path: str | Path, target_rate: int = 8000) -> np.ndarray:
     return samples
 
 
+def load_raw_pcm(data: bytes, source_rate: int = 8000, target_rate: int = 8000) -> np.ndarray:
+    """Interpret headerless signed 16-bit little-endian mono PCM as int16.
+
+    This is the ``LPCM/8000/1`` UniMRCP decodes G.711 into before its VAD sees
+    it, so a raw capture tapped there can be fed to the engines byte-identically
+    (no WAV container, no re-encode). A trailing odd byte is dropped.
+    """
+    if len(data) % 2:
+        data = data[:-1]
+    samples = np.frombuffer(data, dtype="<i2").astype(np.int16)
+    if source_rate != target_rate:
+        samples = soxr.resample(samples, source_rate, target_rate).astype(np.int16)
+    return samples
+
+
 def save_wav(path: str | Path, samples: np.ndarray, rate: int = 8000) -> None:
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     with wave.open(str(path), "wb") as wf:
