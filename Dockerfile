@@ -18,8 +18,13 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy PYTHONUNBUFFERED=1
 WORKDIR /app
 
-# libgomp1 is onnxruntime's runtime dependency; curl fetches the ONNX model
-RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 ca-certificates curl \
+# libgomp1 is onnxruntime's runtime dependency; curl fetches the ONNX model.
+# libc++1/libc++abi1: ten-vad's prebuilt libten_vad.so is built against Clang's
+# libc++ (DT_NEEDED libc++.so.1 + libc++abi.so.1), which slim-bookworm doesn't
+# ship. Without them TenVad() fails to dlopen at record time and the engine is
+# silently skipped — so it shows "available" but never produces a lane.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      libgomp1 libc++1 libc++abi1 ca-certificates curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Silero ONNX model (the C-lib engines are built in the cbuild stage; ten-vad

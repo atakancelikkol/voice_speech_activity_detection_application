@@ -32,9 +32,16 @@ class Engine(VadEngine):
     @classmethod
     def probe(cls) -> tuple[bool, str]:
         try:
-            from ten_vad import TenVad  # noqa: F401
-        except Exception as exc:  # ImportError or the prebuilt lib failing to load
-            return False, f"ten-vad package unavailable: {exc}"
+            from ten_vad import TenVad
+
+            # Importing does NOT load the native lib — TenVad.__init__ dlopens the
+            # prebuilt libten_vad.so. Construct one here so a missing native
+            # dependency (e.g. libc++.so.1 not installed on the host) surfaces as
+            # this engine's reason, instead of every recording silently dropping it
+            # in build_engines() with only a log line.
+            TenVad(HOP, 0.5)
+        except Exception as exc:  # ImportError, or the prebuilt lib failing to dlopen
+            return False, f"ten-vad unavailable: {exc}"
         return True, ""
 
     def __init__(self, params: dict[str, Any] | None = None):
