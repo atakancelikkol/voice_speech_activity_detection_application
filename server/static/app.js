@@ -45,6 +45,58 @@ function colorOf(name) {
   return ENGINE_COLORS[name];
 }
 
+// one-line "what is this" tooltip for each engine/enhancer card header
+const ENGINE_DESC = {
+  unimrcp_vad: "UniMRCP'nin yerleşik enerji dedektörü (mpf_activity_detector.c) — konuşmayı yalnızca frame genliğinden işaretler.",
+  silero_vad: "Silero nöral VAD (ONNX) — frame başına konuşma olasılığı üretir.",
+  ten_vad: "TEN framework nöral VAD — frame başına konuşma olasılığı üretir.",
+  arf_vad: "Adaptif SNR dedektörü (arf plugin) + WebRTC spektral kapı füzyonu.",
+  arf_enhance: "Recognizer (STT) sesini temizler: denoise, de-boom, de-muffle, level, limit. VAD engine'lerini etkilemez.",
+};
+
+/* ---------- tooltips ---------- */
+// Custom hover tooltip with a 200 ms delay. Native title tooltips fire on a
+// fixed ~1 s OS delay that can't be tuned, so we drive our own from data-tip
+// attributes and a single floating element (also avoids sidebar clipping).
+const TIP_DELAY_MS = 200;
+const tipEl = document.createElement("div");
+tipEl.id = "tooltip";
+document.body.appendChild(tipEl);
+let tipTimer = null;
+let tipTarget = null;
+
+function positionTip(el) {
+  const r = el.getBoundingClientRect();
+  const tr = tipEl.getBoundingClientRect();
+  const pad = 8;
+  let left = r.left;
+  if (left + tr.width > window.innerWidth - pad) left = window.innerWidth - pad - tr.width;
+  if (left < pad) left = pad;
+  let top = r.bottom + 6;
+  if (top + tr.height > window.innerHeight - pad) top = r.top - tr.height - 6; // flip above
+  tipEl.style.left = Math.round(left) + "px";
+  tipEl.style.top = Math.round(top) + "px";
+}
+
+document.addEventListener("mouseover", (e) => {
+  const el = e.target.closest("[data-tip]");
+  if (!el || el === tipTarget) return;
+  tipTarget = el;
+  clearTimeout(tipTimer);
+  tipTimer = setTimeout(() => {
+    tipEl.textContent = el.dataset.tip;
+    positionTip(el);
+    tipEl.classList.add("show");
+  }, TIP_DELAY_MS);
+});
+document.addEventListener("mouseout", (e) => {
+  const el = e.target.closest("[data-tip]");
+  if (!el || (e.relatedTarget && el.contains(e.relatedTarget))) return;
+  tipTarget = null;
+  clearTimeout(tipTimer);
+  tipEl.classList.remove("show");
+});
+
 /* ---------- sessions ---------- */
 
 async function refreshSessions() {
@@ -467,10 +519,12 @@ function renderEnginePanel() {
     head.className = "head";
     head.innerHTML = `<span class="swatch" style="background:${colorOf(engine.name)}"></span>
       <span class="name">${engine.display_name}</span>`;
+    if (ENGINE_DESC[engine.name]) head.dataset.tip = ENGINE_DESC[engine.name];
     const toggle = document.createElement("input");
     toggle.type = "checkbox";
     toggle.checked = engine.enabled;
     toggle.disabled = !engine.available;
+    toggle.dataset.tip = `${engine.display_name} motorunu sonraki çağrı ve re-analysis için etkinleştir`;
     toggle.onchange = () => putEngine(engine.name, { enabled: toggle.checked });
     head.appendChild(toggle);
     card.appendChild(head);
@@ -497,6 +551,7 @@ function renderEnginePanel() {
           if (spec.step != null) input.step = spec.step;
           input.value = engine.values[spec.name];
         }
+        if (spec.help) label.dataset.tip = input.dataset.tip = spec.help;
         inputs[spec.name] = input;
         grid.append(label, input);
       }
@@ -506,6 +561,9 @@ function renderEnginePanel() {
       // with a recorded session open, tuning re-runs it offline immediately;
       // otherwise the params just wait for the next live call
       apply.textContent = hasRecordedSession() ? "Re-analyze recording" : "Apply (next call)";
+      apply.dataset.tip = hasRecordedSession()
+        ? "Bu engine'i açık kayıt üzerinde bu parametrelerle yeniden çalıştır."
+        : "Bu parametreleri kaydet; sonraki canlı çağrıda geçerli olur.";
       apply.onclick = () => {
         const params = {};
         for (const [name, input] of Object.entries(inputs))
@@ -595,10 +653,12 @@ function renderEnhancerPanel() {
     head.className = "head";
     head.innerHTML = `<span class="swatch" style="background:${ENHANCER_COLOR}"></span>
       <span class="name">${enh.display_name}</span>`;
+    if (ENGINE_DESC[enh.name]) head.dataset.tip = ENGINE_DESC[enh.name];
     const toggle = document.createElement("input");
     toggle.type = "checkbox";
     toggle.checked = enh.enabled;
     toggle.disabled = !enh.available;
+    toggle.dataset.tip = `${enh.display_name} enhancer'ını recognizer'a (STT) giden sese uygula`;
     toggle.onchange = () => putEnhancer(enh.name, { enabled: toggle.checked });
     head.appendChild(toggle);
     card.appendChild(head);
@@ -625,6 +685,7 @@ function renderEnhancerPanel() {
           if (spec.step != null) input.step = spec.step;
           input.value = enh.values[spec.name];
         }
+        if (spec.help) label.dataset.tip = input.dataset.tip = spec.help;
         inputs[spec.name] = input;
         grid.append(label, input);
       }
@@ -635,6 +696,9 @@ function renderEnhancerPanel() {
       // enhanced audio (what the recognizer/STT would hear). The enhancer does
       // not feed the VAD engines, so this never re-runs detection.
       apply.textContent = hasRecordedSession() ? "Apply & play enhanced" : "Apply";
+      apply.dataset.tip = hasRecordedSession()
+        ? "Bu ayarları uygula ve recognizer'ın duyacağı iyileştirilmiş sesi çal."
+        : "Bu enhancer ayarlarını sonraki çağrı için kaydet.";
       apply.onclick = async () => {
         const params = {};
         for (const [name, input] of Object.entries(inputs))

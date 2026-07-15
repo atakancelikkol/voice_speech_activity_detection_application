@@ -90,6 +90,9 @@ audio { height: 32px; }
 .engineCard .reason { color: #ff8787; font-size: 11px; margin-top: 6px; }
 .engineCard .params { margin-top: 8px; display: grid; grid-template-columns: 1fr 76px; gap: 4px 8px; }
 .engineCard .params label { color: #9aa; font-size: 11px; align-self: center; }
+/* signal that a hover tooltip is available */
+.engineCard .head[data-tip], .engineCard .params label[data-tip] { cursor: help; }
+.engineCard .head[data-tip] .name { text-decoration: underline dotted #4a5262; text-underline-offset: 3px; }
 .engineCard .params input {
   width: 100%; background: #14161a; color: #e8e8e8; border: 1px solid #333a45;
   border-radius: 6px; padding: 3px 6px; font-size: 12px;
@@ -99,3 +102,13 @@ audio { height: 32px; }
   padding: 5px; border-radius: 6px; cursor: pointer; font-size: 12px;
 }
 .engineCard .apply:hover { background: #354052; }
+
+/* custom hover tooltip (driven from data-tip, 200 ms delay set in app.js) */
+#tooltip {
+  position: fixed; z-index: 1000; max-width: 280px;
+  background: #0d0f13; color: #d8dde5; border: 1px solid #333a45;
+  border-radius: 6px; padding: 6px 9px; font-size: 11px; line-height: 1.45;
+  pointer-events: none; opacity: 0; transition: opacity 0.1s;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+}
+#tooltip.show { opacity: 1; }

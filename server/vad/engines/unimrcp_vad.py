@@ -61,10 +61,18 @@ class Engine(VadEngine):
     # noinput_timeout comes from the MRCP no-input-timeout header at runtime;
     # 5 s is a sane default here.
     params = [
-        ParamSpec("level_threshold", "Level threshold", "int", 140, 0, 8000, 1),
-        ParamSpec("speech_timeout", "Speech timeout", "int", 350, 0, 5000, 10, "ms"),
-        ParamSpec("silence_timeout", "Silence timeout", "int", 1100, 0, 5000, 10, "ms"),
-        ParamSpec("noinput_timeout", "No-input timeout", "int", 5000, 0, 60000, 100, "ms"),
+        ParamSpec("level_threshold", "Level threshold", "int", 140, 0, 8000, 1,
+                  help="Bir frame'in ortalama |örnek| genliği bunu aştığında konuşma işaretlenir. "
+                       "Yüksek = daha yüksek ses gerekir, arka plan gürültüsünde daha az yanlış tetikleme."),
+        ParamSpec("speech_timeout", "Speech timeout", "int", 350, 0, 5000, 10, "ms",
+                  help="Konuşma başlangıcı onaylanmadan önce seviyenin threshold üzerinde kalması "
+                       "gereken süre. Kısa sıçramaları filtreler."),
+        ParamSpec("silence_timeout", "Silence timeout", "int", 1100, 0, 5000, 10, "ms",
+                  help="Konuşma bitti sayılmadan önce seviyenin threshold altında kalması "
+                       "gereken süre."),
+        ParamSpec("noinput_timeout", "No-input timeout", "int", 5000, 0, 60000, 100, "ms",
+                  help="Başlangıçtan itibaren bu süre içinde konuşma algılanmazsa no-input olayı "
+                       "tetiklenir (production'da IVR beklemeyi bırakır)."),
     ]
 
     _FORMAT = AudioFormat(sample_rate=8000, frame_samples=80)  # native 10 ms frames

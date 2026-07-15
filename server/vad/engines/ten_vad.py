@@ -21,10 +21,17 @@ class Engine(VadEngine):
     name = "ten_vad"
     display_name = "TEN VAD"
     params = [
-        ParamSpec("threshold", "Speech threshold", "float", 0.5, 0.05, 0.95, 0.05),
-        ParamSpec("min_speech_ms", "Min speech", "int", 250, 0, 2000, 10, "ms"),
-        ParamSpec("min_silence_ms", "Min silence", "int", 300, 0, 5000, 10, "ms"),
-        ParamSpec("speech_pad_ms", "Speech padding", "int", 30, 0, 500, 10, "ms"),
+        ParamSpec("threshold", "Speech threshold", "float", 0.5, 0.05, 0.95, 0.05,
+                  help="Bir frame'in konuşma sayıldığı nöral konuşma-olasılığı eşiği. "
+                       "Düşük = daha hassas (daha çok konuşma, daha çok yanlış pozitif)."),
+        ParamSpec("min_speech_ms", "Min speech", "int", 250, 0, 2000, 10, "ms",
+                  help="Bundan kısa konuşma segmentleri sahte kabul edilip atılır."),
+        ParamSpec("min_silence_ms", "Min silence", "int", 300, 0, 5000, 10, "ms",
+                  help="Bundan kısa sessizlik bir segmenti bitirmez; kelimeler arası kısa "
+                       "duraklar köprülenir."),
+        ParamSpec("speech_pad_ms", "Speech padding", "int", 30, 0, 500, 10, "ms",
+                  help="Algılanan segmentin her iki ucuna eklenen dolgu, böylece "
+                       "başlangıç/bitiş kırpılmaz."),
     ]
 
     _FORMAT = AudioFormat(sample_rate=SAMPLE_RATE, frame_samples=HOP)

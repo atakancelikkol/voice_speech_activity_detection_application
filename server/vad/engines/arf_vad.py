@@ -107,28 +107,60 @@ class Engine(VadEngine):
     # actually runs on an 8 kHz telephony channel.
     params = [
         # adaptive SNR gates
-        ParamSpec("onset_snr", "Onset SNR", "float", 18.0, 0.0, 30.0, 0.5, "dB"),
-        ParamSpec("offset_snr", "Offset SNR", "float", 5.0, 0.0, 30.0, 0.5, "dB"),
-        ParamSpec("abs_silence_level", "Abs silence level", "int", 200, 0, 2000, 10),
-        ParamSpec("use_zcr", "ZCR fricative assist", "bool", True),
+        ParamSpec("onset_snr", "Onset SNR", "float", 18.0, 0.0, 30.0, 0.5, "dB",
+                  help="Konuşmayı BAŞLATMAK için adaptif noise floor üzerinde gereken SNR. "
+                       "Yüksek = daha katı başlangıç, sessiz sesleri yok sayar."),
+        ParamSpec("offset_snr", "Offset SNR", "float", 5.0, 0.0, 30.0, 0.5, "dB",
+                  help="Konuşmanın BİTTİĞİ kabul edildiği SNR. Onset SNR'ın altında tutulur "
+                       "(hysteresis) ki kısa düşüşlerde konuşma kesilmesin."),
+        ParamSpec("abs_silence_level", "Abs silence level", "int", 200, 0, 2000, 10,
+                  help="SNR'dan bağımsız olarak bir frame'in her zaman sessizlik sayıldığı "
+                       "mutlak genlik eşiği."),
+        ParamSpec("use_zcr", "ZCR fricative assist", "bool", True,
+                  help="Zero-crossing yardımı: düşük enerjili ama yüksek zero-crossing oranlı "
+                       "ötümsüz frikatifleri (s, f, ş) yakalar."),
         # libfvad spectral gate (engine: mode 3, 25-frame window, 68/12 %)
-        ParamSpec("use_fvad", "libfvad spectral gate", "bool", True),
-        ParamSpec("fvad_mode", "fvad aggressiveness", "int", 3, 0, 3, 1),
-        ParamSpec("fvad_window", "fvad vote window", "int", 25, 1, 100, 1, "frames"),
-        ParamSpec("fvad_open_pct", "fvad open threshold", "int", 68, 0, 100, 1, "%"),
-        ParamSpec("fvad_hold_pct", "fvad hold threshold", "int", 12, 0, 100, 1, "%"),
-        ParamSpec("spec_bypass_snr", "fvad veto bypass SNR", "float", 30.0, 0.0, 90.0, 0.5, "dB"),
+        ParamSpec("use_fvad", "libfvad spectral gate", "bool", True,
+                  help="WebRTC (libfvad) spektral konuşma/gürültü sınıflandırıcısını rüzgar, "
+                       "tıklama ve sabit oda gürültüsüne karşı bir kapı olarak katar. "
+                       "Kapalı = yalnızca enerji/SNR."),
+        ParamSpec("fvad_mode", "fvad aggressiveness", "int", 3, 0, 3, 1,
+                  help="libfvad agresifliği: 0 = hoşgörülü, 3 = konuşma-dışını reddetmede "
+                       "en agresif."),
+        ParamSpec("fvad_window", "fvad vote window", "int", 25, 1, 100, 1, "frames",
+                  help="libfvad konuşma-oranı oylamasının ortalandığı son 10 ms'lik frame sayısı."),
+        ParamSpec("fvad_open_pct", "fvad open threshold", "int", 68, 0, 100, 1, "%",
+                  help="Konuşmayı AÇMAK (başlatmak) için pencerenin 'konuşma' oyu vermesi "
+                       "gereken oran."),
+        ParamSpec("fvad_hold_pct", "fvad hold threshold", "int", 12, 0, 100, 1, "%",
+                  help="Konuşma başladıktan sonra onu TUTMAK için gereken daha düşük oran "
+                       "(frikatif önleyici hysteresis)."),
+        ParamSpec("spec_bypass_snr", "fvad veto bypass SNR", "float", 30.0, 0.0, 90.0, 0.5, "dB",
+                  help="libfvad vetosunun yok sayıldığı SNR — çok yüksek ses, spektral oydan "
+                       "bağımsız konuşma sayılır."),
         # proximity / dominant-talker gates (engine: onset_level 2500 + confirm 1
         # + adaptive proximity 6 dB on; dominant_drop off)
-        ParamSpec("onset_level", "Onset level (abs)", "int", 2500, 0, 32767, 10),
-        ParamSpec("onset_confirm_frames", "Onset confirm", "int", 1, 0, 50, 1, "frames"),
-        ParamSpec("dominant_drop_db", "Dominant drop", "float", 0.0, 0.0, 60.0, 0.5, "dB"),
-        ParamSpec("adaptive_margin_db", "Adaptive proximity", "float", 6.0, 0.0, 30.0, 0.5, "dB"),
+        ParamSpec("onset_level", "Onset level (abs)", "int", 2500, 0, 32767, 10,
+                  help="Bir frame'in konuşma onset'i için uygun olması gereken mutlak genlik "
+                       "(yakınlık / baskın konuşmacı kapısı)."),
+        ParamSpec("onset_confirm_frames", "Onset confirm", "int", 1, 0, 50, 1, "frames",
+                  help="Bir onset onaylanmadan önce gereken ardışık uygun frame sayısı."),
+        ParamSpec("dominant_drop_db", "Dominant drop", "float", 0.0, 0.0, 60.0, 0.5, "dB",
+                  help="Baskın konuşmacı segmentini bitiren, son tepe değerin altına düşüş "
+                       "(0 = kapalı)."),
+        ParamSpec("adaptive_margin_db", "Adaptive proximity", "float", 6.0, 0.0, 30.0, 0.5, "dB",
+                  help="Konuşmayı kabul etmeden önce adaptif floor'un sinyalin altında tuttuğu "
+                       "ek dB marjı (yakınlık kapısı)."),
         # timeouts (engine: speech 150 ms, silence 1300 ms; noinput comes from
         # the MRCP no-input-timeout header at runtime, 5 s is a sane default here)
-        ParamSpec("speech_timeout", "Speech timeout", "int", 150, 0, 5000, 10, "ms"),
-        ParamSpec("silence_timeout", "Silence timeout", "int", 1300, 0, 5000, 10, "ms"),
-        ParamSpec("noinput_timeout", "No-input timeout", "int", 5000, 0, 60000, 100, "ms"),
+        ParamSpec("speech_timeout", "Speech timeout", "int", 150, 0, 5000, 10, "ms",
+                  help="Onset kapılarından sonra konuşma başlangıcının onaylanması için "
+                       "minimum süre."),
+        ParamSpec("silence_timeout", "Silence timeout", "int", 1300, 0, 5000, 10, "ms",
+                  help="Konuşma bitti sayılmadan önce gereken sessizlik süresi."),
+        ParamSpec("noinput_timeout", "No-input timeout", "int", 5000, 0, 60000, 100, "ms",
+                  help="Başlangıçtan itibaren bu süre içinde konuşma olmazsa no-input olayı "
+                       "tetiklenir."),
     ]
 
     _FORMAT = AudioFormat(sample_rate=8000, frame_samples=80)  # native 10 ms frames

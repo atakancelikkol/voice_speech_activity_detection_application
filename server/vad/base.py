@@ -61,6 +61,7 @@ class ParamSpec:
     max: Any = None
     step: Any = None
     unit: str = ""
+    help: str = ""  # one/two-sentence explanation, shown as a UI tooltip
 
     def coerce(self, value: Any) -> Any:
         if self.type == "bool":

@@ -68,27 +68,57 @@ class Engine(AudioEnhancer):
     display_name = "arf enhance (denoise/EQ/leveler)"
     params = [
         # spectral-subtraction denoiser (off by default, like the engine)
-        ParamSpec("denoise", "Denoise (spectral)", "bool", False),
-        ParamSpec("oversub", "Denoise over-subtraction", "float", 1.0, 0.0, 4.0, 0.1),
-        ParamSpec("floor_gain", "Denoise floor gain", "float", 0.15, 0.0, 1.0, 0.05),
+        ParamSpec("denoise", "Denoise (spectral)", "bool", False,
+                  help="Spectral-subtraction denoiser. Varsayılan kapalı, production recognizer "
+                       "zinciriyle uyumlu."),
+        ParamSpec("oversub", "Denoise over-subtraction", "float", 1.0, 0.0, 4.0, 0.1,
+                  help="Tahmini gürültünün ne kadar agresif çıkarıldığı. Yüksek = daha çok "
+                       "gürültü giderir ama 'musical' artefakt riski."),
+        ParamSpec("floor_gain", "Denoise floor gain", "float", 0.15, 0.0, 1.0, 0.05,
+                  help="Denoise sırasında her frekans bin'i için tutulan minimum kazanç, "
+                       "böylece konuşma aşırı bastırılmaz."),
         # de-boom high-pass
-        ParamSpec("hp_fc", "High-pass cutoff", "int", 120, 0, 500, 10, "Hz"),
-        ParamSpec("hp_auto", "Adaptive high-pass", "bool", True),
+        ParamSpec("hp_fc", "High-pass cutoff", "int", 120, 0, 500, 10, "Hz",
+                  help="Bu frekansın altındaki düşük-frekans uğultuyu/boom'u kaldıran "
+                       "high-pass kesim."),
+        ParamSpec("hp_auto", "Adaptive high-pass", "bool", True,
+                  help="High-pass kesim frekansının sabit kalmak yerine sinyale göre uyum "
+                       "sağlamasına izin ver."),
         # de-muffle high-shelf
-        ParamSpec("shelf_fc", "De-muffle shelf freq", "int", 1800, 500, 3800, 50, "Hz"),
-        ParamSpec("shelf_gain", "De-muffle shelf gain", "float", 7.0, 0.0, 12.0, 0.5, "dB"),
-        ParamSpec("shelf_q", "De-muffle shelf Q", "float", 0.707, 0.3, 2.0, 0.05),
-        ParamSpec("preemph", "Pre-emphasis", "float", 0.0, 0.0, 0.97, 0.01),
+        ParamSpec("shelf_fc", "De-muffle shelf freq", "int", 1800, 500, 3800, 50, "Hz",
+                  help="De-muffle high-shelf'in netlik için yüksekleri kaldırmaya başladığı "
+                       "frekans."),
+        ParamSpec("shelf_gain", "De-muffle shelf gain", "float", 7.0, 0.0, 12.0, 0.5, "dB",
+                  help="High-shelf'in konuşmayı de-muffle etmek için yüksek frekanslara "
+                       "uyguladığı kazanç."),
+        ParamSpec("shelf_q", "De-muffle shelf Q", "float", 0.707, 0.3, 2.0, 0.05,
+                  help="Shelf dikliği. Düşük Q = daha yumuşak, daha geniş geçiş."),
+        ParamSpec("preemph", "Pre-emphasis", "float", 0.0, 0.0, 0.97, 0.01,
+                  help="Yüksek frekansları artırarak sinyali parlatan pre-emphasis katsayısı "
+                       "(0 = kapalı)."),
         # leveler (on) + legacy AGC (off) + non-speech duck
-        ParamSpec("leveler", "Leveler", "bool", True),
-        ParamSpec("leveler_target", "Leveler target RMS", "int", 3000, 500, 8000, 100),
-        ParamSpec("leveler_max_gain", "Leveler max gain", "float", 3.0, 1.0, 6.0, 0.5),
-        ParamSpec("leveler_floor", "Leveler floor RMS", "int", 200, 0, 2000, 10),
-        ParamSpec("agc", "AGC (legacy)", "bool", False),
-        ParamSpec("agc_target", "AGC target RMS", "int", 3000, 500, 8000, 100),
-        ParamSpec("agc_max_gain", "AGC max gain", "float", 8.0, 1.0, 20.0, 0.5),
-        ParamSpec("nonspeech_atten", "Non-speech duck", "float", 1.0, 0.0, 1.0, 0.05),
-        ParamSpec("limiter_mode", "Limiter mode (0 soft/1 tanh)", "int", 0, 0, 1, 1),
+        ParamSpec("leveler", "Leveler", "bool", True,
+                  help="Pompalamadan sesi bir hedefe doğru yumuşatan RMS leveler."),
+        ParamSpec("leveler_target", "Leveler target RMS", "int", 3000, 500, 8000, 100,
+                  help="Leveler'ın konuşmayı sürüklediği hedef RMS seviyesi."),
+        ParamSpec("leveler_max_gain", "Leveler max gain", "float", 3.0, 1.0, 6.0, 0.5,
+                  help="Leveler'ın uygulayabileceği maksimum kazanç — sessiz sesin ne kadar "
+                       "yükseltileceğini sınırlar."),
+        ParamSpec("leveler_floor", "Leveler floor RMS", "int", 200, 0, 2000, 10,
+                  help="Altında sesin sessizlik sayılıp yükseltilmediği RMS; böylece kelimeler "
+                       "arası gürültü büyütülmez."),
+        ParamSpec("agc", "AGC (legacy)", "bool", False,
+                  help="Eski otomatik kazanç kontrolü (AGC). Varsayılan kapalı; leveler tercih "
+                       "edilir."),
+        ParamSpec("agc_target", "AGC target RMS", "int", 3000, 500, 8000, 100,
+                  help="Eski AGC için hedef RMS."),
+        ParamSpec("agc_max_gain", "AGC max gain", "float", 8.0, 1.0, 20.0, 0.5,
+                  help="Eski AGC'nin uygulayabileceği maksimum kazanç."),
+        ParamSpec("nonspeech_atten", "Non-speech duck", "float", 1.0, 0.0, 1.0, 0.05,
+                  help="Konuşma-dışı frame'lere uygulanan kazanç (1 = aynen tut, <1 kelimeler "
+                       "arası arka planı kısar)."),
+        ParamSpec("limiter_mode", "Limiter mode (0 soft/1 tanh)", "int", 0, 0, 1, 1,
+                  help="Çıkış limiter şekli: 0 = soft-knee, 1 = tanh doygunluk."),
     ]
 
     _lib: ctypes.CDLL | None = None

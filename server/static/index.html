@@ -12,22 +12,22 @@
   <div id="recorder">
     <span id="recHint"></span>
     <div id="recLevel"><div id="recLevelFill"></div></div>
-    <select id="imprintSel" title="Imprint telephony G.711 companding on mic/upload audio so the engines see what the production VAD sees on the wire (Turkey = A-law)">
+    <select id="imprintSel" data-tip="Mic/upload sesine telefon G.711 companding damgası vurur, böylece engine'ler production VAD'ın hatta gördüğünü görür (Türkiye = A-law)">
       <option value="">no companding</option>
       <option value="alaw">A-law (PCMA)</option>
       <option value="ulaw">&mu;-law (PCMU)</option>
     </select>
-    <button id="wavBtn" disabled title="Pick a WAV or raw s16le/8k PCM file and analyze it">&#128193; WAV file…</button>
+    <button id="wavBtn" disabled data-tip="Bir WAV veya ham s16le/8k PCM dosyası seç ve analiz et">&#128193; WAV file…</button>
     <input type="file" id="wavFileInput" accept=".wav,audio/wav,audio/x-wav,.raw,.pcm,.sw,.s16,.lpcm,.l16,application/octet-stream" style="display:none">
-    <button id="recordBtn" disabled>&#127908; Record</button>
+    <button id="recordBtn" disabled data-tip="Kaydı başlat/durdur — mikrofona konuş, durdurmak için tekrar tıkla; tüm etkin engine'ler canlı çalışır">&#127908; Record</button>
   </div>
 </header>
 <div id="layout">
   <aside>
     <h2>Sessions</h2>
     <div class="sessionFilter">
-      <input type="date" id="sessionDate" title="Show only recordings from this day">
-      <button id="sessionDateClear" title="Show recordings from all days">All</button>
+      <input type="date" id="sessionDate" data-tip="Yalnızca bu güne ait kayıtları göster">
+      <button id="sessionDateClear" data-tip="Tüm günlerin kayıtlarını göster">All</button>
     </div>
     <ul id="sessionList"></ul>
   </aside>
@@ -35,15 +35,15 @@
     <div id="toolbar">
       <span class="title" id="sessionTitle">no session</span>
       <audio id="player" controls style="display:none"></audio>
-      <button id="reanalyzeBtn" style="display:none" title="Re-run all enabled engines over this recording with the current parameters">Re-analyze all</button>
-      <button id="followBtn" class="on">Follow live</button>
-      <button id="fitBtn">Fit</button>
+      <button id="reanalyzeBtn" style="display:none" data-tip="Tüm etkin engine'leri bu kayıt üzerinde mevcut parametrelerle yeniden çalıştır">Re-analyze all</button>
+      <button id="followBtn" class="on" data-tip="Canlı çağrı sırasında görünümü en yeni sese kaydırılmış tut">Follow live</button>
+      <button id="fitBtn" data-tip="Timeline'ı tüm kaydı gösterecek şekilde uzaklaştır">Fit</button>
     </div>
     <div id="timelineWrap"><canvas id="timeline"></canvas></div>
   </main>
   <aside class="right">
     <h2>Audio Enhancer</h2>
-    <p class="panelNote">Cleans the audio sent to the recognizer (STT), like UniMRCP. Does not affect the VAD engines — use “Apply &amp; play enhanced” to hear it.</p>
+    <p class="panelNote">Recognizer'a (STT) gönderilen sesi temizler, UniMRCP gibi. VAD engine'lerini etkilemez — duymak için “Apply &amp; play enhanced”e bas.</p>
     <div id="enhancerPanel"></div>
     <h2>Engines</h2>
     <div id="enginePanel"></div>
