@@ -47,10 +47,10 @@ function colorOf(name) {
 
 // one-line "what is this" tooltip for each engine/enhancer card header
 const ENGINE_DESC = {
-  unimrcp_vad: "UniMRCP'nin yerleşik enerji dedektörü (mpf_activity_detector.c) — konuşmayı yalnızca frame genliğinden işaretler.",
-  silero_vad: "Silero nöral VAD (ONNX) — frame başına konuşma olasılığı üretir.",
-  ten_vad: "TEN framework nöral VAD — frame başına konuşma olasılığı üretir.",
-  arf_vad: "Adaptif SNR dedektörü (arf plugin) + WebRTC spektral kapı füzyonu.",
+  unimrcp_vad: "UniMRCP'nin yerleşik enerji dedektörü (mpf_activity_detector.c) — konuşmayı yalnızca frame genliğinden işaretler. Grafikteki eğri her 10 ms frame'in ortalama |örnek| genliğidir (log ölçek); genlik 'eşik' çizgisini aşınca konuşma sayılır.",
+  silero_vad: "Silero nöral VAD (ONNX) — frame başına konuşma olasılığı üretir. Grafik: 0..1 olasılık; 'threshold' çizgisini geçen frame'ler konuşma adayıdır.",
+  ten_vad: "TEN framework nöral VAD — frame başına konuşma olasılığı üretir. Grafik: 0..1 olasılık; 'threshold' çizgisini geçen frame'ler konuşma adayıdır.",
+  arf_vad: "Adaptif SNR dedektörü (arf plugin) + WebRTC spektral kapı füzyonu. Grafikteki eğri sesin adaptif gürültü tabanının kaç dB üstünde olduğudur (SNR): 'başlar' çizgisini geçince konuşma başlar, 'biter' çizgisinin altına inince biter. SNR tek karar değildir — spektral (fvad) ve yakınlık kapıları da vetolayabilir; gerçek sonucu segment çubukları gösterir.",
   arf_enhance: "Recognizer (STT) sesini temizler: denoise, de-boom, de-muffle, level, limit. VAD engine'lerini etkilemez.",
 };
 

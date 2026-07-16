@@ -35,7 +35,13 @@ ARF_VAD_EVENT_ACTIVITY = 1
 ARF_VAD_EVENT_INACTIVITY = 2
 ARF_VAD_EVENT_NOINPUT = 3
 
-_SNR_FULL_SCALE_DB = 30.0  # SNR mapped to score 1.0 for display
+# SNR mapped to score 1.0 for display. The decision variable ranges hugely: a
+# quiet floor puts loud speech 40-75 dB over it, and transients (a close cough)
+# reach ~80 dB. The old 30 dB ceiling saturated for most frames (curve pinned to
+# the top, 30 read as the trigger). 80 dB spans the full observed range so even
+# the loudest events stay on-scale and the curve keeps moving, while the
+# onset/offset lines — low on this axis — mark where the on/off decision is made.
+_SNR_FULL_SCALE_DB = 80.0
 
 
 def _load_lib() -> ctypes.CDLL:
@@ -187,15 +193,23 @@ class Engine(VadEngine):
 
     @classmethod
     def score_axis(cls, config: dict[str, Any]) -> dict[str, Any]:
-        # the plotted value is SNR over the adaptive noise floor, mapped
-        # snr/30 dB -> 0..1 for display. Label the axis in real dB and mark the
-        # onset/offset SNR gates (the actual speech on/off decision points).
+        # The plotted value is SNR: how many dB the frame rises ABOVE the
+        # adaptive noise floor (0 dB = the floor itself, the lane's baseline).
+        # Scale ticks are plain dB gridlines; the two decision lines are the
+        # onset SNR (signal must climb above it to START speech) and the offset
+        # SNR (must fall below it to STOP), labelled in plain language so it is
+        # clear the on/off decision lives at these lines, not at the top of the
+        # axis. SNR is only the PRIMARY gate: the spectral (fvad) and proximity
+        # gates can still veto, so the segment bars are the real outcome.
         full = _SNR_FULL_SCALE_DB
-        ticks = [{"frac": db / full, "label": str(db), "kind": "scale"} for db in (0, 10, 20, 30)]
-        for label, key in (("onset", "onset_snr"), ("offset", "offset_snr")):
-            db = config[key]
-            ticks.append({"frac": min(1.0, max(0.0, db / full)), "label": f"{label} {db:g}", "kind": "threshold"})
-        return {"unit": "dB SNR", "ticks": ticks}
+        ticks = [
+            {"frac": db / full, "label": ("0 (taban)" if db == 0 else str(db)), "kind": "scale"}
+            for db in (0, 20, 40, 60, 80)
+        ]
+        onset, offset = config["onset_snr"], config["offset_snr"]
+        ticks.append({"frac": min(1.0, max(0.0, onset / full)), "label": f"başlar ≥{onset:g}", "kind": "threshold"})
+        ticks.append({"frac": min(1.0, max(0.0, offset / full)), "label": f"biter <{offset:g}", "kind": "threshold"})
+        return {"unit": "SNR dB", "ticks": ticks}
 
     @classmethod
     def _get_fvad_lib(cls) -> ctypes.CDLL:

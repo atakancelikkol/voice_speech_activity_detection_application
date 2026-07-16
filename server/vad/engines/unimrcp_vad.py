@@ -96,20 +96,24 @@ class Engine(VadEngine):
 
     @classmethod
     def score_axis(cls, config: dict[str, Any]) -> dict[str, Any]:
-        # score = log1p(mean|sample|) / log1p(32767): a log-compressed amplitude,
-        # not a probability. Present the scale as dBFS (0 dB = full scale) so the
-        # energy reads in familiar dB, and mark the level_threshold decision line
-        # in its native mean-|sample| units (the same units the param panel tunes).
+        # score = log1p(mean|sample|) / log1p(32767): a log-compressed amplitude.
+        # Label the axis in the SAME unit the decision uses and the slider tunes —
+        # mean |sample| amplitude (0..32767) — instead of dBFS, so there is no
+        # unit clash: the earlier axis showed a dBFS scale but a raw "140"
+        # threshold, two different unit systems on one axis. Log-spaced decade
+        # gridlines (the score is log-compressed) plus the threshold line labelled
+        # with its actual value, so dragging level_threshold to 140 visibly moves
+        # the "eşik 140" line the curve has to cross for speech.
         def frac_of_level(level: float) -> float:
             return min(1.0, max(0.0, math.log1p(max(0.0, level)) / _LOG_FULL_SCALE))
 
-        def frac_of_dbfs(dbfs: float) -> float:
-            return frac_of_level(32767.0 * 10.0 ** (dbfs / 20.0))
-
-        ticks = [{"frac": frac_of_dbfs(db), "label": str(db), "kind": "scale"} for db in (-60, -40, -20, 0)]
+        ticks = [
+            {"frac": frac_of_level(level), "label": label, "kind": "scale"}
+            for level, label in ((10, "10"), (100, "100"), (1000, "1k"), (10000, "10k"))
+        ]
         thr = config["level_threshold"]
-        ticks.append({"frac": frac_of_level(thr), "label": f"{thr:g}", "kind": "threshold"})
-        return {"unit": "dBFS", "ticks": ticks}
+        ticks.append({"frac": frac_of_level(thr), "label": f"eşik {thr:g}", "kind": "threshold"})
+        return {"unit": "genlik |örnek|", "ticks": ticks}
 
     def __init__(self, params: dict[str, Any] | None = None):
         super().__init__(params)

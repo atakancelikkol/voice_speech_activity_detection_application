@@ -7,7 +7,9 @@
 const AXIS_H = 24;
 const LABEL_W = 118;
 const WAVE_H = 96;
-const LANE_H = 74;
+const LANE_H = 92; // taller lane: the score curve + its native-unit y axis get
+// more vertical room, so wide-range axes (e.g. arf's 0..80 dB SNR) keep the
+// decision lines and their labels legible instead of crowding near the baseline
 
 const GRID_COLOR = "#242933";
 const TEXT_COLOR = "#9aa";
