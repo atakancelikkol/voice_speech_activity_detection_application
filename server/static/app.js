@@ -690,8 +690,10 @@ function renderEnhancerPanel() {
         grid.append(label, input);
       }
       card.appendChild(grid);
+      const row = document.createElement("div");
+      row.className = "applyRow";
       const apply = document.createElement("button");
-      apply.className = "apply";
+      apply.className = "apply enhance";
       // Applying stores the params and, with a recording open, plays the
       // enhanced audio (what the recognizer/STT would hear). The enhancer does
       // not feed the VAD engines, so this never re-runs detection.
@@ -703,10 +705,29 @@ function renderEnhancerPanel() {
         const params = {};
         for (const [name, input] of Object.entries(inputs))
           params[name] = input.type === "checkbox" ? input.checked : Number(input.value);
-        await putEnhancer(enh.name, { params });
+        // "Apply & play enhanced" has to actually let you HEAR these params. The
+        // /enhanced.wav preview only applies an enhancer that is enabled — with
+        // none enabled it falls back to the raw audio, so every click sounds
+        // identical no matter what you change. With a recording open we therefore
+        // enable this enhancer as part of applying it (the toggle flips on too).
+        const body = hasRecordedSession() ? { enabled: true, params } : { params };
+        await putEnhancer(enh.name, body);
         playEnhanced();
       };
-      card.appendChild(apply);
+      row.appendChild(apply);
+      // A/B compare: a "play raw" button right next to it, so you can flip back
+      // to the untouched recording and hear the difference. A gentle enhancer
+      // tweak (e.g. a ~1 dB high-pass tilt) is nearly impossible to judge from a
+      // single enhanced playback — you need the original to compare against.
+      if (hasRecordedSession()) {
+        const raw = document.createElement("button");
+        raw.className = "apply playRaw";
+        raw.textContent = "🔊 Ham ses";
+        raw.dataset.tip = "İyileştirmesiz ham kaydı çal — 'Apply & play enhanced' ile art arda basıp A/B karşılaştır.";
+        raw.onclick = playRaw;
+        row.appendChild(raw);
+      }
+      card.appendChild(row);
     }
     els.enhancerPanel.appendChild(card);
   }
@@ -736,6 +757,15 @@ function playEnhanced() {
   audio.src = active
     ? `/api/sessions/${state.currentSession}/enhanced.wav?t=${Date.now()}`
     : `/api/sessions/${state.currentSession}/audio.wav`;
+  audio.play().catch(() => {});
+}
+
+// Play the open recording raw (no enhancer) so you can A/B it against "Apply &
+// play enhanced". Deliberately bypasses the active enhancer — this is the
+// original audio to compare the enhanced preview against.
+function playRaw() {
+  if (!hasRecordedSession()) return;
+  audio.src = `/api/sessions/${state.currentSession}/audio.wav?t=${Date.now()}`;
   audio.play().catch(() => {});
 }
 

@@ -102,6 +102,15 @@ audio { height: 32px; }
   padding: 5px; border-radius: 6px; cursor: pointer; font-size: 12px;
 }
 .engineCard .apply:hover { background: #354052; }
+/* A/B row: "Apply & play enhanced" (fills) + a compact "play raw" beside it */
+.engineCard .applyRow { display: flex; gap: 6px; margin-top: 8px; }
+.engineCard .applyRow .apply { margin-top: 0; }
+.engineCard .applyRow .apply.enhance { flex: 1; }
+.engineCard .apply.playRaw {
+  width: auto; flex: 0 0 auto; white-space: nowrap;
+  background: #14161a; border: 1px solid #333a45;
+}
+.engineCard .apply.playRaw:hover { background: #1c1f26; }
 
 /* custom hover tooltip (driven from data-tip, 200 ms delay set in app.js) */
 #tooltip {
