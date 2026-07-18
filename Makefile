@@ -27,6 +27,7 @@ build-c:
 	$(MAKE) -C third_party/arf_vad
 	$(MAKE) -C third_party/arf_enhance
 	$(MAKE) -C third_party/df_enhance
+	$(MAKE) -C third_party/rnnoise_enh
 
 models:
 	./scripts/fetch_models.sh
@@ -58,4 +59,5 @@ clean:
 	$(MAKE) -C third_party/libfvad clean
 	$(MAKE) -C third_party/arf_vad clean
 	$(MAKE) -C third_party/df_enhance clean
+	$(MAKE) -C third_party/rnnoise_enh clean
 	$(MAKE) -C third_party/arf_enhance clean

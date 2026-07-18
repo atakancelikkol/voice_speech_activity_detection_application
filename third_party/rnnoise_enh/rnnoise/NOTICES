@@ -1,0 +1,14 @@
+Vendored from https://github.com/xiph/rnnoise (BSD-3-Clause, see COPYING),
+master @ Jul 2026, model version
+0a8755f8e2d834eff6a54714ecc7d75f9932e845df35f8b59bc52a7cfe6e8b37.
+
+Layout notes:
+ - rnnoise_data.{c,h} are the upstream rnnoise_data_little.{c,h} (the "little"
+   model) renamed, so rnn.c picks the small built-in weights: the plugin input
+   is 8/16 kHz telephony upsampled to 48 kHz, where the big model's extra
+   capacity above 4/8 kHz buys nothing.
+ - The x86 RTCD sources are intentionally not vendored; without
+   RNN_ENABLE_X86_RTCD the generic C kernels (plus NEON via vec_neon.h on
+   ARM) are used.
+ - The 8/16 kHz <-> 48 kHz polyphase resampling lives in ../rn_denoise.c,
+   not in the vendored tree.

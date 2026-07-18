@@ -12,6 +12,7 @@ from server.vad.base import ParamSpec
 ENHANCER_MODULES = [
     "server.enhance.engines.arf_enhance",
     "server.enhance.engines.deepfilter",
+    "server.enhance.engines.rnnoise",
 ]
 
 

@@ -13,6 +13,7 @@ ENGINE_MODULES = [
     "server.vad.engines.silero_vad",
     "server.vad.engines.ten_vad",
     "server.vad.engines.ten_vad_df",
+    "server.vad.engines.ten_vad_rnn",
     "server.vad.engines.arf_vad",
 ]
 
